@@ -217,3 +217,16 @@ def test_http_session_retries_dropped_gets_but_not_rate_limits():
     from dw.sources.http import session
     retry = session.get_adapter("https://example.org").max_retries
     assert retry.total >= 1 and 429 not in retry.status_forcelist and "POST" not in retry.allowed_methods
+
+
+def test_rate_limited_source_with_retry_after_does_not_stall():
+    """Open-Meteo answers 429 with Retry-After when its daily limit is hit. That must fail fast."""
+    import time
+    from urllib3.response import HTTPResponse
+    from dw.sources.http import session
+    retry = session.get_adapter("https://example.org").max_retries
+    resp = HTTPResponse(status=429, headers={"Retry-After": "36000"})
+    assert not retry.is_retry("GET", 429, has_retry_after=True)
+    t = time.monotonic()
+    retry.sleep(resp)
+    assert time.monotonic() - t < 1

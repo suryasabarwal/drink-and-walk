@@ -35,7 +35,10 @@ FAKE = {
         gp(2, "Gilded Cocktail Parlor", "cocktail_bar", ["cocktail_bar", "bar"], "PRICE_LEVEL_EXPENSIVE", hours=LATE),
         gp(3, "Corner Taps", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", hours=LATE, servesBeer=True),
     ],
-    "bars_close": [gp(4, "Blue Door Bar", "bar", ["bar"], "PRICE_LEVEL_MODERATE", hours=LATE, servesBeer=True, rating=2.9, userRatingCount=80),
+    "bars_close": [gp(10, "Grand Lobby Hotel", "hotel", ["hotel", "lodging", "bar"]),
+                   gp(11, "Oak Barrel Room", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (20, 30), hours=LATE, servesBeer=True),
+                   gp(12, "Wide Range Saloon", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (10, 50), hours=LATE, servesBeer=True),
+                   gp(13, "Ten Dollar Taps", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", (10, 20), hours=LATE, servesBeer=True),gp(4, "Blue Door Bar", "bar", ["bar"], "PRICE_LEVEL_MODERATE", hours=LATE, servesBeer=True, rating=2.9, userRatingCount=80),
                    gp(9, "Closed Forever Tavern", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", hours=LATE, businessStatus="CLOSED_PERMANENTLY")],
     "cheap_food": [gp(5, "Slice Window", "pizza_restaurant", ["pizza_restaurant", "restaurant"], "PRICE_LEVEL_INEXPENSIVE", (10, 20), hours=every_day(11, 0, 3, 0, True))],
     "restaurants": [gp(6, "Noodle Counter", "ramen_restaurant", ["ramen_restaurant", "restaurant"], "PRICE_LEVEL_INEXPENSIVE", hours=DINNER),
@@ -78,6 +81,9 @@ def test_normalize_prices_hours_and_flags(google):
     assert (s["price"]["low"], s["price"]["high"], s["price"]["mid"]) == (10, 20, 15) and "$10 to $20" in s["price"]["basis"]
     assert s["amenity"] == "restaurant" and s["cuisine"] == "pizza" and s["gmaps"].startswith("https://maps.google.com/")
     assert all(x["price"]["estimate"] for x in places) and all(x["happy_hint"] is None for x in places)
+    assert "Grand Lobby Hotel" not in p
+    assert p["Oak Barrel Room"]["price"]["tier"] == "pricey" and p["Wide Range Saloon"]["price"]["tier"] == "pricey"
+    assert p["Ten Dollar Taps"]["price"]["tier"] == "cheap"
 
 
 def test_google_hours_overnight_and_closed():

@@ -165,3 +165,17 @@ def test_nearby_late_food_means_open_late_not_just_open_now():
     assert got == ["n2"]
     after_midnight = [r["place"]["id"] for r in planner.nearby(ps, 0.0, 0.0, 5, 60, "late", {})]
     assert after_midnight == ["n2"]
+
+
+def test_swap_options_never_repeat_a_name(places):
+    from datetime import date, timedelta
+    from dw import planner
+    extra = []
+    for i in range(3):
+        base = next(p for p in places if p["amenity"] == "fast_food")
+        extra.append(dict(base, id=f"n99{i}", name="Chain Burger", lat=base["lat"] + 0.0002 * (i + 1)))
+    fri = date.today() + timedelta(days=(4 - date.today().weekday()) % 7 + 7)
+    n = planner.build_plan(places + extra, {"lat": 42.8864, "lon": -78.8784, "name": "x"}, [fri], 2, 200, "dive", False, False, False, {}, [])["nights"][0]
+    for s in n["stops"]:
+        names = [a["place"]["name"] for a in s["alternatives"]] + [s["place"]["name"]]
+        assert len(names) == len(set(names))

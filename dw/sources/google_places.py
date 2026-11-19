@@ -54,6 +54,7 @@ PRICEY_TYPES = {"wine_bar", "cocktail_bar", "lounge_bar", "fine_dining_restauran
 DRINK_TYPES = {"bar", "pub", "wine_bar", "cocktail_bar", "lounge_bar", "sports_bar", "irish_pub", "brewpub", "beer_garden", "bar_and_grill"}
 FAST_TYPES = {"fast_food_restaurant", "meal_takeaway", "sandwich_shop", "hamburger_restaurant", "hot_dog_stand", "food_court"}
 CAFE_TYPES = {"cafe", "coffee_shop", "bakery", "tea_house"}
+LODGING_TYPES = {"hotel", "lodging", "resort_hotel", "motel", "inn", "hostel", "bed_and_breakfast", "extended_stay_hotel", "guest_house"}
 TICKETED_TYPES = {"night_club", "concert_hall", "event_venue", "performing_arts_theater"}
 CUISINE_FROM_TYPE = {
     "pizza_restaurant": "pizza", "hamburger_restaurant": "burger", "mexican_restaurant": "mexican",
@@ -121,6 +122,10 @@ def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[
         high = int(hi["units"]) if hi.get("units") else low + 10
         p.update(low=low, high=high, mid=round((low + high) / 2), basis=f"Google says people usually spend ${low} to ${high}")
         tier = tier or ("cheap" if p["mid"] <= 14 else "ok" if p["mid"] <= 22 else "pricey")
+        # Google calls $20 to $30 bars "moderate". For a drinks stop on a cheap night, that is not.
+        drinks = amenity in ("bar", "pub", "nightclub")
+        if (drinks and (low >= 20 or high >= 45)) or (not drinks and (low >= 25 or high >= 60)):
+            tier = "pricey"
     elif tier:
         scale = {"cheap": 0.85, "ok": 1.0, "pricey": 1.6}[tier]
         p.update(low=round(p["low"] * scale), high=round(p["high"] * scale), mid=round(p["mid"] * scale),
@@ -143,6 +148,8 @@ def normalize(g: dict[str, Any]) -> dict[str, Any] | None:
         return None
     types = set(g.get("types") or [])
     primary = g.get("primaryType") or ""
+    if primary in LODGING_TYPES:
+        return None  # a hotel turns up in bar searches, and hotel bars are not a cheap night
     amenity = _amenity(types, primary)
     cuisine = next((CUISINE_FROM_TYPE[t] for t in [primary, *types] if t in CUISINE_FROM_TYPE), "")
     live = bool(g.get("liveMusic"))

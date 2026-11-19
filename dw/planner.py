@@ -173,7 +173,7 @@ def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[s
             continue
         best = chosen[0]
         stop = _stop_view(best[3], slot, best[1], best[2], ctx, vibe)
-        stop["alternatives"] = [_stop_view(a[3], slot, a[1], a[2], ctx, vibe) for a in chosen[1:6]]
+        stop["alternatives"] = [_stop_view(a[3], slot, a[1], a[2], ctx, vibe) for a in chosen[1:10]]
         for alt in stop["alternatives"]:
             alt.pop("alternatives", None)
         stops.append(stop)
@@ -181,8 +181,16 @@ def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[s
         prev = (best[3]["lat"], best[3]["lon"])
     # A runner-up for one slot must not be a place already used in another slot tonight.
     chosen_ids = {s["place"]["id"] for s in stops}
+    chosen_names = {s["place"]["name"].lower() for s in stops}
     for s in stops:
-        s["alternatives"] = [a for a in s["alternatives"] if a["place"]["id"] not in chosen_ids]
+        alts, names = [], set(chosen_names)
+        for a in s["alternatives"]:
+            nm = a["place"]["name"].lower()
+            if a["place"]["id"] in chosen_ids or nm in names:
+                continue  # also skips a second branch of the same chain
+            names.add(nm)
+            alts.append(a)
+        s["alternatives"] = alts
     return {"date": day.isoformat(), "weekday": day.strftime("%a"), "stops": stops, "missing": missing}
 
 
