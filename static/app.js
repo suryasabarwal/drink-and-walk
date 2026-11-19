@@ -248,6 +248,12 @@ VIEWS.group = (app, bar) => {
 };
 
 /* --- step 4: where are you starting --- */
+// "24, South Johnson Park, Buffalo, ..." reads better as "24 South Johnson Park"
+function shortAddress(label) {
+  const parts = label.split(',').map(x => x.trim()).filter(Boolean);
+  if (parts.length > 1 && /^\d+[a-z]?$/i.test(parts[0])) return parts[0] + ' ' + parts[1];
+  return parts.slice(0, 2).join(', ');
+}
 VIEWS.start = (app, bar) => {
   const chosen = h('div', {});
   const refresh = () => {
@@ -265,7 +271,7 @@ VIEWS.start = (app, bar) => {
     foundNote.textContent = 'Searching...';
     try {
       const j = await api(`/api/locate?q=${encodeURIComponent(text)}&lat=${S.city.lat}&lon=${S.city.lon}`);
-      found.replaceChildren(...j.results.map(r => h('li', { role: 'presentation' }, h('button', { onclick: () => { pick(r.label.split(',').slice(0, 2).join(',').trim(), r.lat, r.lon); found.hidden = true; } }, r.label))));
+      found.replaceChildren(...j.results.map(r => h('li', { role: 'presentation' }, h('button', { onclick: () => { pick(shortAddress(r.label), r.lat, r.lon); found.hidden = true; } }, r.label))));
       found.hidden = !j.results.length;
       foundNote.textContent = j.results.length ? '' : 'Nothing found near ' + S.city.name + '. Try a neighborhood below.';
     } catch (e) { foundNote.textContent = e.message; }
@@ -471,7 +477,7 @@ VIEWS.plan = (app, bar) => {
   put(app, 
     h('h2', {}, `${city}, ${fmtDay(dateObj)}`),
     h('p', { class: 'help' }, `${P.people} ${P.people === 1 ? 'person' : 'people'} · ${S.vibe} · from ${P.stay.name}`,
-      wx && wx.lo_c != null && wx.hi_c != null ? ` · ${temp(wx.lo_c)} to ${temp(wx.hi_c)}${wx.rain_pct != null ? ', ' + wx.rain_pct + '% rain' : ''}` : ''),
+      wx && wx.lo_c != null && wx.hi_c != null ? ` · ${temp(wx.lo_c)} to ${temp(wx.hi_c)}${wx.rain_pct != null ? ', ' + wx.rain_pct + '% rain' : wx.rain_mm >= 1 ? ', rain expected' : ''}` : ''),
     tabs, metric,
     heads.length ? h('div', { class: 'notice heads' + (heads.some(x => x.level === 'warn') ? ' warn' : '') }, h('h5', {}, 'Heads up'), h('ul', {}, ...heads.map(x => h('li', {}, x.text)))) : null,
     P.thin ? h('div', { class: 'banner warn' }, h('span', {}, 'The map only knows a few places here. '), h('button', { class: 'btn small line', style: 'margin-left:auto', onclick: widen }, 'Search wider')) : null,

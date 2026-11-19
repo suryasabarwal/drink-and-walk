@@ -158,7 +158,7 @@ def make_plan():
     plan["city"] = r["city"]["name"]
     plan["country"] = r["city"]["country"]
     plan["radius"] = r["radius"]
-    plan["source"] = meta
+    plan["source"] = {**meta, **({"weather": weather.last_error} if wx is None else {})}
     plan["google"] = meta.get("source") == "google"
     plan["banners"] = notes.banners(r["days"], r["city"]["country"], wx)
     plan["safety"] = voice.UI["safety"] if r["city"]["country"] == "US" else voice.UI["safety"][:3]

@@ -78,6 +78,8 @@ def banners(dates: list[date], country: str, weather: dict[str, dict[str, Any]] 
             continue
         if (w.get("rain_pct") or 0) >= 50:
             add("info", f"Rain looks likely on {d:%a %b} {d.day} ({w['rain_pct']}%). Bring a jacket and favor places with indoor seating.")
+        elif w.get("rain_pct") is None and (w.get("rain_mm") or 0) >= 1:
+            add("info", f"Rain expected on the evening of {d:%a %b} {d.day} (about {w['rain_mm']:g} mm). Bring a jacket and favor places with indoor seating.")
         if w.get("lo_c") is not None and w["lo_c"] <= 0:
             add("info", f"It gets below freezing on {d:%a %b} {d.day}. Short walks between stops help.")
         if w.get("hi_c") is not None and w["hi_c"] >= 33:

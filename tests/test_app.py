@@ -90,7 +90,7 @@ class FakeResp:
         self.status_code, self._d = status, data or {}
     def json(self): return self._d
     def raise_for_status(self):
-        if self.status_code >= 400: raise requests.HTTPError("bad")
+        if self.status_code >= 400: raise requests.HTTPError("bad", response=self)
 
 
 def test_overpass_falls_back_to_backup_server_then_cache(monkeypatch, elements):
@@ -230,3 +230,35 @@ def test_rate_limited_source_with_retry_after_does_not_stall():
     t = time.monotonic()
     retry.sleep(resp)
     assert time.monotonic() - t < 1
+
+
+def test_weather_falls_back_to_met_norway_when_open_meteo_says_no(monkeypatch):
+    """Synthetic MET Norway shape: hourly points in UTC with instant temperature and next hour rain."""
+    from datetime import datetime, timezone
+    from dw import notes
+    from dw.sources import weather
+    t = date.today()
+    start = datetime(t.year, t.month, t.day, 5, tzinfo=timezone.utc)  # lon 0, so UTC is local
+    series = []
+    for h in range(48):
+        when = start + timedelta(hours=h)
+        series.append({"time": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "data": {"instant": {"details": {"air_temperature": -3 + h % 24 * 0.5}},
+                                "next_1_hours": {"details": {"precipitation_amount": 0.6 if 18 <= when.hour <= 21 else 0.0}}}})
+    def get(url, params=None, timeout=None):
+        if "open-meteo" in url:
+            return FakeResp(429, {"reason": "Daily API request limit exceeded"})
+        return FakeResp(200, {"properties": {"timeseries": series}})
+    monkeypatch.setattr(weather.session, "get", get)
+    wx = weather.forecast(51.5, 0.0, t, t)
+    day = wx[t.isoformat()]
+    assert day["rain_pct"] is None and day["rain_mm"] == 2.4 and day["lo_c"] < 0
+    texts = [b["text"] for b in notes.banners([t], "GB", wx)]
+    assert any("Rain expected" in x and "2.4 mm" in x for x in texts) and any("below freezing" in x for x in texts)
+
+
+def test_weather_says_why_when_every_source_fails(monkeypatch):
+    from dw.sources import weather
+    monkeypatch.setattr(weather.session, "get", lambda *a, **k: FakeResp(429, {}))
+    assert weather.forecast(1, 1, date.today(), date.today()) is None
+    assert "open-meteo: 429" in weather.last_error and "met.no: 429" in weather.last_error
