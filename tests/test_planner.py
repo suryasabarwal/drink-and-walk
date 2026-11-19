@@ -1,0 +1,139 @@
+from datetime import date
+
+from dw import geo, planner, voice
+
+STAY = {"lat": 42.8864, "lon": -78.8784, "name": "Test Hotel"}
+FRI, SAT = date(2026, 12, 4), date(2026, 12, 5)
+
+
+def build(places, **kw):
+    args = dict(people=4, budget_pp=60, vibe="dive", live_music=False, late_night=False, free_only=False, deals={}, events=[])
+    args.update(kw)
+    return planner.build_plan(places, STAY, kw.pop("days", [FRI]) if "days" in kw else [FRI], args["people"], args["budget_pp"], args["vibe"], args["live_music"], args["late_night"], args["free_only"], args["deals"], args["events"])
+
+
+def stops(plan, n=0):
+    return plan["nights"][n]["stops"]
+
+
+def test_no_pricey_places_ever_chosen(places):
+    for vibe in ("dive", "chill", "lively"):
+        p = build(places, vibe=vibe, live_music=True, late_night=True)
+        for s in stops(p):
+            assert s["place"]["price"]["tier"] != "pricey", s["place"]["name"]
+            for alt in s["alternatives"]:
+                assert alt["place"]["price"]["tier"] != "pricey"
+
+
+def test_stops_are_in_time_order_and_close_together(places):
+    p = build(places, live_music=True, late_night=True, budget_pp=200)
+    mins = [s["minute"] for s in stops(p)]
+    assert mins == sorted(mins)
+    assert all(leg["min"] <= 25 for leg in p["nights"][0]["legs"])
+
+
+def test_walking_legs_match_the_math(places):
+    p = build(places)
+    n = p["nights"][0]
+    s0 = n["stops"][0]["place"]
+    d = geo.haversine_m(STAY["lat"], STAY["lon"], s0["lat"], s0["lon"])
+    assert n["legs"][0]["min"] == geo.walk_minutes(d)
+    assert n["home"]["m"] >= 0
+
+
+def test_live_music_stop_really_has_live_music(places):
+    p = build(places, live_music=True)
+    music = [s for s in stops(p) if s["slot"] == "music"]
+    assert music and music[0]["place"]["live_music"]
+
+
+def test_late_night_food_must_be_confirmed_open(places):
+    p = build(places, late_night=True, budget_pp=200)
+    late = [s for s in stops(p) if s["slot"] == "late"]
+    assert late and late[0]["open"] is True
+    for alt in late[0]["alternatives"]:
+        assert alt["open"] is True
+
+
+def test_free_filter_drops_ticketed_venues(places):
+    p = build(places, free_only=True, live_music=True)
+    for s in stops(p):
+        assert not s["place"]["ticketed"]
+        for a in s["alternatives"]:
+            assert not a["place"]["ticketed"]
+
+
+def test_closed_places_are_never_picked(places):
+    # Corner Deli closes at 15:00 on weekdays, so it can't be the 6:30 pm dinner
+    p = build(places)
+    assert all(s["place"]["name"] != "Corner Deli and Sub" for s in stops(p))
+
+
+def test_community_deal_lifts_a_place(places):
+    target = next(x for x in places if x["name"] == "Rusty Anchor Tavern")
+    p = build(places, deals={target["id"]: [{"id": "d1", "text": "$3 pints", "when": "Fri", "days_old": 2}]})
+    names = [s["place"]["name"] for s in stops(p)]
+    assert "Rusty Anchor Tavern" in names
+    s = next(s for s in stops(p) if s["place"]["name"] == "Rusty Anchor Tavern")
+    assert s["deals"][0]["text"] == "$3 pints"
+
+
+def test_over_budget_trims_optional_stops_and_says_so(places):
+    p = build(places, budget_pp=30, vibe="lively")
+    n = p["nights"][0]
+    assert not any(s["slot"] == "last" for s in n["stops"])
+    assert any("Dropped" in t for t in n["tips"])
+
+
+def test_budget_meter_states(places):
+    rich = build(places, budget_pp=300)["nights"][0]["totals"]
+    assert rich["state"] == "under"
+    tight = build(places, budget_pp=5, vibe="dive")["nights"][0]["totals"]
+    assert tight["state"] == "over" and "over" in tight["message"]
+
+
+def test_second_night_prefers_new_places(places):
+    p = planner.build_plan(places, STAY, [FRI, SAT], 4, 60, "dive", False, False, False, {}, [])
+    a = {s["place"]["id"] for s in p["nights"][0]["stops"]}
+    b = {s["place"]["id"] for s in p["nights"][1]["stops"]}
+    assert not (a & b)
+
+
+def test_thin_data_is_reported_honestly(places):
+    p = planner.build_plan(places[:6], STAY, [FRI], 2, 60, "dive", True, True, False, {}, [])
+    assert p["thin"] is True
+
+
+def test_missing_live_music_gets_a_tip_not_a_fake_stop(places):
+    no_music = [x for x in places if not x["live_music"]]
+    p = planner.build_plan(no_music, STAY, [FRI], 2, 60, "dive", True, False, False, {}, [])
+    assert voice.UI["no_live"] in p["nights"][0]["tips"]
+    assert not any(s["slot"] == "music" for s in p["nights"][0]["stops"])
+
+
+def test_empty_area_does_not_crash():
+    p = planner.build_plan([], STAY, [FRI], 2, 60, "dive", True, True, False, {}, [])
+    assert p["nights"][0]["stops"] == [] and p["thin"]
+
+
+def test_swap_recompute_uses_new_place(places):
+    p = build(places)
+    s = p["nights"][0]["stops"][1]
+    s["place"] = s["alternatives"][0]["place"]
+    again = planner.finalize(planner.clean_plan({**p, "nights": p["nights"]}))
+    assert again["nights"][0]["stops"][1]["place"]["id"] == s["place"]["id"]
+
+
+def test_nearby_filters_and_sorts(places):
+    out = planner.nearby(places, STAY["lat"], STAY["lon"], 4, 20 * 60, "drink", {})
+    assert out and all(r["place"]["amenity"] in ("bar", "pub", "biergarten") for r in out)
+    assert all(r["place"]["price"]["tier"] != "pricey" for r in out)
+    late = planner.nearby(places, STAY["lat"], STAY["lon"], 4, 24 * 60 - 30 + 0, "late", {})
+    assert all(r["open"] is True for r in late)
+
+
+def test_alternatives_never_repeat_a_place_used_elsewhere_that_night(places):
+    p = build(places, live_music=True, late_night=True, budget_pp=300)
+    used = {s["place"]["id"] for s in stops(p)}
+    for s in stops(p):
+        assert not any(a["place"]["id"] in used for a in s["alternatives"])

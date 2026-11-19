@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Drink and Walk: a cheap night out, planned</title>
+<meta name="description" content="Pick a city and where you're starting. Get a walking route of cheap food, happy hours and live music for your group.">
+<meta name="theme-color" content="#f5a524">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f5a524'/%3E%3Cpath d='M9 8h14l-6 8v7h4v2h-10v-2h4v-7z' fill='%23231600'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <button class="iconbtn" id="back" aria-label="Go back" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <button class="brand" id="home" aria-label="Drink and Walk, back to start">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#f5a524"/><path d="M9 8h14l-6 8v7h4v2H11v-2h4v-7z" fill="#231600"/></svg>
+      Drink and Walk
+    </button>
+    <span class="stepnote" id="stepnote" aria-live="polite"></span>
+  </div>
+  <div class="progress" id="progress" hidden><i style="width:0"></i></div>
+</header>
+
+<main>
+  <div class="wrap" id="app" tabindex="-1">
+    <noscript><p class="err">This app needs JavaScript to run.</p></noscript>
+  </div>
+</main>
+
+<footer class="bar" id="bar" hidden>
+  <div class="wrap" id="barinner"></div>
+</footer>
+
+<div id="live" class="sr" aria-live="polite"></div>
+<script>window.DW = { events: {{ 'true' if ticketmaster else 'false' }} };</script>
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

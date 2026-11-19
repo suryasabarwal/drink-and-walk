@@ -1,0 +1,34 @@
+{
+ "elements": [
+  {
+   "type": "node",
+   "id": 9001,
+   "lat": 42.8904,
+   "lon": -78.8754,
+   "tags": {
+    "name": "Test Heights",
+    "place": "neighbourhood"
+   }
+  },
+  {
+   "type": "node",
+   "id": 9002,
+   "lat": 42.8804,
+   "lon": -78.8824,
+   "tags": {
+    "name": "Sample Square",
+    "place": "suburb"
+   }
+  },
+  {
+   "type": "node",
+   "id": 9003,
+   "lat": 42.888400000000004,
+   "lon": -78.8864,
+   "tags": {
+    "name": "Fixture Central Station",
+    "railway": "station"
+   }
+  }
+ ]
+}

@@ -1,0 +1,32 @@
+"""Settings. Everything is free to run; the only optional key is Ticketmaster."""
+import os
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(os.environ.get("DW_DATA_DIR", ROOT / "data"))
+CACHE_DIR = DATA_DIR / "cache"
+
+CONTACT = os.environ.get("DW_CONTACT", "https://github.com/suryasabarwal/drink-and-walk")
+USER_AGENT = f"DrinkAndWalk/1.0 (+{CONTACT})"
+
+OVERPASS_SERVERS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+]
+# The public Overpass servers ask for light use. This counts queries across all visitors.
+OVERPASS_DAILY_LIMIT = int(os.environ.get("DW_OVERPASS_DAILY_LIMIT", "80"))
+PLACES_CACHE_DAYS = 7
+
+GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
+FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+TICKETMASTER_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
+TICKETMASTER_KEY = os.environ.get("TICKETMASTER_KEY", "")
+
+DEFAULT_RADIUS_M = 1500
+MAX_RADIUS_M = 4000
+MAX_NIGHTS = 4
+MAX_PEOPLE = 20
+WALK_M_PER_MIN = 80       # about 4.8 km/h
+DETOUR_FACTOR = 1.25      # streets are not straight lines
+HTTP_TIMEOUT = 25
