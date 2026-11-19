@@ -188,3 +188,18 @@ def test_breather_costs_a_coffee_not_the_cafes_brunch_prices():
     assert planner.stop_cost("breather", cafe) == (7, 5, 9)
     assert planner.stop_cost("breather", bar)[0] == 8  # one round
     assert planner.stop_cost("eat", cafe)[0] == 25
+
+
+def test_breather_is_close_or_skipped():
+    from datetime import date, timedelta
+    from dw import planner
+    def place(i, lat, amenity, name, lively=0.1):
+        return {"id": f"n{i}", "name": name, "lat": lat, "lon": 0.0, "amenity": amenity, "live_music": False, "ticketed": False,
+                "no_cover": False, "happy_hint": None, "website": "", "rating": 4.5, "rating_count": 50, "hours_week": [[[0, 1680]]] * 7,
+                "vibe": {"dive": 0.2, "lively": lively, "chill": 0.1}, "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
+    ps = [place(1, 0.0, "fast_food", "Taco Spot"), place(2, 0.001, "bar", "Plain Bar"), place(3, 0.0015, "bar", "Second Plain Bar"),
+          place(5, 0.0005, "bar", "Third Plain Bar"), place(4, 0.02, "cafe", "Far Away Cafe")]  # the cafe is 2 km out
+    sat = date.today() + timedelta(days=(5 - date.today().weekday()) % 7 + 7)
+    n = planner.build_plan(ps, {"lat": 0.0, "lon": 0.0, "name": "h"}, [sat], 2, 200, "chill", False, False, False, {}, [])["nights"][0]
+    assert all(s["place"]["name"] != "Far Away Cafe" for s in n["stops"])
+    assert any(s["slot"] == "last" for s in n["stops"])  # a plain bar counts as a quiet last round

@@ -92,10 +92,13 @@ def _role_ok(place: dict[str, Any], role: str, vibe: str, free_only: bool) -> bo
         return place["live_music"] and (a in DRINK_AMENITIES or a == "music_venue")
     if role == "eat" or role == "late":
         return a in FOOD_ROLE
+    # Quiet enough: any bar that is not a loud music or club spot. Google rarely says "quiet",
+    # so waiting for a chill signal left one or two options in a whole neighborhood.
+    quiet = a in DRINK_AMENITIES and (place["vibe"]["chill"] >= 0.25 or place["vibe"]["lively"] < 0.6)
     if role == "breather":
-        return a == "cafe" or (a in DRINK_AMENITIES and place["vibe"]["chill"] >= 0.4)
+        return a == "cafe" or quiet
     if role == "chilldrink":
-        return a in DRINK_AMENITIES and place["vibe"]["chill"] >= 0.25
+        return quiet
     return False
 
 
@@ -132,6 +135,8 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
     s = 1.0 + TIER_BONUS[tier] - stop_cost(slot["key"], place)[0] / 100
     if role in ("drink", "music", "chilldrink", "breather"):
         s += 0.5 * place["vibe"][vibe]
+    if role == "breather" and place["amenity"] == "cafe":
+        s += 0.3  # the point of a breather is coffee and water, and it leaves the bars for later
     if ctx["deals"].get(pid):
         s += 1.0  # a visitor-confirmed deal is the strongest sign of cheap the app has
     if place.get("happy_hint") and slot["key"] == "happy":
@@ -212,7 +217,12 @@ def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[s
     ranked: list[list[tuple]] = []
     for slot in slots_for(day.weekday(), vibe, ctx["live_music"], ctx["late_night"]):
         chosen = None
-        caps = (1000, 1500, 3500) if slot["key"] in ("last", "late") else (1500, 3500)
+        if slot["key"] == "breather":
+            caps = (600, 1000)  # a pause, not a trek; skip it if nothing is close
+        elif slot["key"] in ("last", "late"):
+            caps = (1000, 1500, 3500)
+        else:
+            caps = (1500, 3500)
         for cap in caps:
             scored = []
             for p in places:
