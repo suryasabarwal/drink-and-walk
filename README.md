@@ -1,5 +1,9 @@
 # Drink and Walk
 
+**Live:** https://drink-and-walk.onrender.com (free hosting, so the first visit can take a minute to wake up)
+
+![Drink and Walk home screen](docs/home.png)
+
 A cheap night out for friends splitting the bill. Pick a city, dates, group size, a budget and
 where you are staying. Drink and Walk builds a walking route of cheap food, happy hours and live
 music, in order, with walking times and a running cost.
