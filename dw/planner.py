@@ -11,7 +11,7 @@ import re
 from datetime import date
 from typing import Any
 
-from . import geo, voice
+from . import geo, money, voice
 from .places import DRINK_AMENITIES, TICKETED, open_state
 
 FOOD_ROLE = {"restaurant", "fast_food", "food_court"}
@@ -103,7 +103,7 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
         return None
     if role == "late" and state is not True:
         return None
-    s = 1.0 + TIER_BONUS[tier] - place["price"]["mid"] / 100
+    s = 1.0 + TIER_BONUS[tier] - place["price"]["mid"] / ctx.get("factor", 1.0) / 100
     if role in ("drink", "music", "chilldrink", "breather"):
         s += 0.5 * place["vibe"][vibe]
     if ctx["deals"].get(pid):
@@ -194,8 +194,10 @@ def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[s
     return {"date": day.isoformat(), "weekday": day.strftime("%a"), "stops": stops, "missing": missing}
 
 
-def build_plan(places, stay, days: list[date], people, budget_pp, vibe, live_music, late_night, free_only, deals, events):
+def build_plan(places, stay, days: list[date], people, budget_pp, vibe, live_music, late_night, free_only, deals, events, currency="USD"):
+    """Prices in `places` and `budget_pp` are both in `currency` (see money.localize)."""
     ctx = {
+        "factor": money.factor(currency),
         "live_music": live_music,
         "late_night": late_night,
         "free_only": free_only,
@@ -215,7 +217,7 @@ def build_plan(places, stay, days: list[date], people, budget_pp, vibe, live_mus
             if victim is None:
                 break
             n["stops"].remove(victim)
-            n["tips"].append(f"Dropped the {victim['label'].lower()} to stay near your ${round(budget_pp)} limit. Raise the limit to bring it back.")
+            n["tips"].append(f"Dropped the {victim['label'].lower()} to stay near your {money.fmt(budget_pp, currency)} limit. Raise the limit to bring it back.")
         if live_music and "music" in n["missing"]:
             n["tips"].append(voice.UI["no_live"])
         if late_night and "late" in n["missing"]:
@@ -225,6 +227,7 @@ def build_plan(places, stay, days: list[date], people, budget_pp, vibe, live_mus
         "stay": stay,
         "people": people,
         "budget_pp": budget_pp,
+        "currency": currency,
         "vibe": vibe,
         "nights": nights,
         "thin": len(places) < 12,
@@ -238,6 +241,7 @@ def finalize(plan: dict[str, Any]) -> dict[str, Any]:
     stay = plan["stay"]
     people = plan["people"]
     budget = float(plan["budget_pp"])
+    cur = plan.get("currency") or "USD"
     for n in plan["nights"]:
         prev = (stay["lat"], stay["lon"])
         prev_name = stay.get("name") or "where you're staying"
@@ -262,11 +266,11 @@ def finalize(plan: dict[str, Any]) -> dict[str, Any]:
         if spent == 0:
             state, msg = "under", "Nothing planned yet."
         elif pct <= 0.85:
-            state, msg = "under", f"About ${round(budget - spent)} under your limit."
+            state, msg = "under", f"About {money.fmt(budget - spent, cur)} under your limit."
         elif pct <= 1.0:
             state, msg = "near", "Right at your limit. Skip a round if anything runs over."
         else:
-            state, msg = "over", f"About ${round(spent - budget)} over. Swap a stop for a cheaper one or skip the last round."
+            state, msg = "over", f"About {money.fmt(spent - budget, cur)} over. Swap a stop for a cheaper one or skip the last round."
         n["totals"] = {
             "per_person": spent,
             "range": [low, high],
@@ -344,8 +348,9 @@ def _num(v: Any, lo: float, hi: float, default: float = 0) -> float:
     return max(lo, min(hi, f))
 
 
-def clean_place(p: dict[str, Any]) -> dict[str, Any]:
+def clean_place(p: dict[str, Any], currency: str = "USD") -> dict[str, Any]:
     price = p.get("price") or {}
+    top = 500 * money.factor(currency)
     site = _s(p.get("website"), 200)
     gm = _s(p.get("gmaps"), 300)
     return {
@@ -359,9 +364,9 @@ def clean_place(p: dict[str, Any]) -> dict[str, Any]:
         "gmaps": gm if gm.startswith(("https://maps.google.com/", "https://www.google.com/maps")) else "",
         "live_music": bool(p.get("live_music")),
         "price": {
-            "low": int(_num(price.get("low"), 0, 500)),
-            "high": int(_num(price.get("high"), 0, 500)),
-            "mid": int(_num(price.get("mid"), 0, 500)),
+            "low": int(_num(price.get("low"), 0, top)),
+            "high": int(_num(price.get("high"), 0, top)),
+            "mid": int(_num(price.get("mid"), 0, top)),
             "tier": price.get("tier") if price.get("tier") in TIER_BONUS else "ok",
         },
     }
@@ -369,10 +374,13 @@ def clean_place(p: dict[str, Any]) -> dict[str, Any]:
 
 def clean_plan(raw: dict[str, Any]) -> dict[str, Any]:
     stay = raw.get("stay") or {}
+    cur = raw.get("currency") if money.known(raw.get("currency")) else "USD"
+    f = money.factor(cur)
     plan = {
         "stay": {"lat": _num(stay.get("lat"), -90, 90), "lon": _num(stay.get("lon"), -180, 180), "name": _s(stay.get("name"), 80)},
         "people": int(_num(raw.get("people"), 1, 20, 2)),
-        "budget_pp": _num(raw.get("budget_pp"), 5, 500, 40),
+        "budget_pp": _num(raw.get("budget_pp"), 5 * f, 500 * f, 40 * f),
+        "currency": cur,
         "vibe": raw.get("vibe") if raw.get("vibe") in ("dive", "chill", "lively") else "dive",
         "city": _s(raw.get("city"), 80),
         "nights": [],
@@ -392,7 +400,7 @@ def clean_plan(raw: dict[str, Any]) -> dict[str, Any]:
                     "label": voice.SLOT_LABELS[key],
                     "minute": minute,
                     "time": fmt_time(minute),
-                    "place": clean_place(s.get("place") or {}),
+                    "place": clean_place(s.get("place") or {}, cur),
                     "open": s.get("open") if s.get("open") in (True, False) else None,
                     "line": _s(s.get("line"), 160),
                     "deals": [],

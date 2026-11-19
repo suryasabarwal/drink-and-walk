@@ -47,7 +47,8 @@ def events(lat: float, lon: float, start: date, end: date) -> list[dict[str, Any
         for e in items:
             dates = (e.get("dates") or {}).get("start") or {}
             venue = (((e.get("_embedded") or {}).get("venues")) or [{}])[0]
-            price = (e.get("priceRanges") or [{}])[0].get("min")
+            pr = (e.get("priceRanges") or [{}])[0]
+            price = pr.get("min")
             out[e["id"]] = {
                 "id": e["id"],
                 "name": e.get("name", "")[:100],
@@ -55,6 +56,7 @@ def events(lat: float, lon: float, start: date, end: date) -> list[dict[str, Any
                 "time": (dates.get("localTime") or "")[:5],
                 "venue": venue.get("name", "")[:80],
                 "price_from": price,
+                "currency": str(pr.get("currency") or "")[:3].upper(),
                 "url": e.get("url", ""),
             }
     return sorted(out.values(), key=lambda x: (x["date"], x["time"]))

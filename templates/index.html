@@ -35,7 +35,7 @@
 </footer>
 
 <div id="live" class="sr" aria-live="polite"></div>
-<script>window.DW = { events: {{ 'true' if ticketmaster else 'false' }} };</script>
+<script>window.DW = { events: {{ 'true' if ticketmaster else 'false' }}, money: {{ money|tojson }} };</script>
 <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </body>
 </html>

@@ -9,7 +9,7 @@ from functools import wraps
 
 from flask import Flask, Response, jsonify, render_template, request
 
-from dw import config, deals as deal_board, export, notes, planner, voice
+from dw import config, deals as deal_board, export, money, notes, planner, voice
 from dw.sources import SourceDown, geocode, google_places, overpass, ticketmaster, weather
 
 app = Flask(__name__)
@@ -66,7 +66,7 @@ def _bad(exc):
 
 @app.get("/")
 def index():
-    return render_template("index.html", ticketmaster=ticketmaster.enabled())
+    return render_template("index.html", ticketmaster=ticketmaster.enabled(), money=money.client_table())
 
 
 @app.get("/healthz")
@@ -111,12 +111,15 @@ def _parse_plan_request(j: dict):
     stay = j.get("stay") or {}
     city = j.get("city") or {}
     people = int(_float("people", 1, config.MAX_PEOPLE, j))
-    budget = _float("budget_pp", 5, 300, j)
+    country = str(city.get("country") or "")[:2].upper()
+    currency = money.currency_for(country)
+    budget = _float("budget_pp", *money.budget_limits(currency), j)
     vibe = j.get("vibe") if j.get("vibe") in ("dive", "chill", "lively") else "dive"
     return {
         "days": [start + timedelta(days=i) for i in range(nights)],
         "stay": {"lat": _float("lat", -90, 90, stay), "lon": _float("lon", -180, 180, stay), "name": str(stay.get("name") or "")[:80] or "the city center"},
-        "city": {"name": str(city.get("name") or "")[:80], "country": str(city.get("country") or "")[:2].upper()},
+        "city": {"name": str(city.get("name") or "")[:80], "country": country},
+        "currency": currency,
         "people": people,
         "budget": budget,
         "vibe": vibe,
@@ -149,11 +152,12 @@ def _attach_text(plan):
 def make_plan():
     r = _parse_plan_request(request.get_json(silent=True) or {})
     places, meta = get_places(r["stay"]["lat"], r["stay"]["lon"], r["radius"], r["live"], r["late"])
+    places = money.localize(places, r["currency"], r["city"]["country"])
     deals = deal_board.for_places({p["id"] for p in places})
     wx = weather.forecast(r["stay"]["lat"], r["stay"]["lon"], r["days"][0], r["days"][-1])
     events = ticketmaster.events(r["stay"]["lat"], r["stay"]["lon"], r["days"][0], r["days"][-1])
     plan = planner.build_plan(
-        places, r["stay"], r["days"], r["people"], r["budget"], r["vibe"], r["live"], r["late"], r["free"], deals, events
+        places, r["stay"], r["days"], r["people"], r["budget"], r["vibe"], r["live"], r["late"], r["free"], deals, events, r["currency"]
     )
     plan["city"] = r["city"]["name"]
     plan["country"] = r["city"]["country"]
@@ -196,8 +200,13 @@ def nearby():
     if mode not in ("drink", "eat", "music", "free", "late"):
         raise ValueError("unknown mode")
     places, meta = get_places(lat, lon, 1200, mode == "music", mode == "late")
+    # The city's country when the visitor picked one, else whatever currency Google's prices use.
+    country = request.args.get("country", "")[:2].upper()
+    currency = money.currency_for(country) if country else (money.guess_currency(places) or "USD")
+    places = money.localize(places, currency, country or None)
     deals = deal_board.for_places({p["id"] for p in places})
-    return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places), google=meta.get("source") == "google")
+    return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places),
+                   google=meta.get("source") == "google", currency=currency)
 
 
 @app.post("/api/deals")

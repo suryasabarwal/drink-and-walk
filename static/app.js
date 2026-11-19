@@ -33,15 +33,20 @@ const fmtDay = d => d.toLocaleDateString(undefined, { weekday: 'short', month: '
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const nights = () => S.start && S.end ? Math.round((fromIso(S.end) - fromIso(S.start)) / 864e5) + 1 : 0;
 const put = (el, ...kids) => el.append(...kids.flat().filter(k => k != null && k !== false));
+/* Money in the city's currency. The table comes from dw/money.py through the page. */
+const MONEY = (window.DW && window.DW.money) || { countries: {}, currencies: {} };
+const curFor = country => MONEY.countries[(country || '').toUpperCase()] || 'USD';
+const curInfo = code => MONEY.currencies[code] || (code ? { prefix: code + ' ', suffix: '', factor: 1, step: 1 } : MONEY.currencies.USD);
+const fmtMoney = (n, code) => { const c = curInfo(code || 'USD'); return c.prefix + Math.round(n).toLocaleString('en-US') + c.suffix; };
 const say = t => { $('#live').textContent = ''; setTimeout(() => { $('#live').textContent = t; }, 30); };
 
 /* ---------- state ---------- */
 const FLOW = ['city', 'dates', 'group', 'start', 'vibe'];
 const S = {
-  step: 'home', flow: 'plan', city: null, start: '', end: '', people: 4, budget: 50,
+  step: 'home', flow: 'plan', city: null, start: '', end: '', people: 4, budget: 50, budgetCur: '',
   stay: null, vibe: 'dive', live: false, late: false, free: false, radius: 1500,
   plan: null, night: 0, anchors: null, anchorErr: '', locResults: null, picks: {},
-  near: { mode: 'drink', results: null, at: null, note: '', err: '' },
+  near: { mode: 'drink', results: null, at: null, note: '', err: '', country: '', currency: 'USD' },
 };
 
 /* ---------- navigation ---------- */
@@ -136,7 +141,7 @@ function credits(google) {
 
 /* --- step 1: city --- */
 VIEWS.city = (app, bar) => cityView(app, bar, 'Where are you headed?', 'Start typing a city. Pick it from the list.', () => go('dates'), 'Next');
-VIEWS.nearcity = (app, bar) => cityView(app, bar, 'Which city are you in?', 'We could not get your location, so pick your city and we will search from the center.', () => loadNearby({ lat: S.city.lat, lon: S.city.lon }, 'Searching from the center of ' + S.city.name + '.'), 'Show cheap spots');
+VIEWS.nearcity = (app, bar) => cityView(app, bar, 'Which city are you in?', 'We could not get your location, so pick your city and we will search from the center.', () => loadNearby({ lat: S.city.lat, lon: S.city.lon }, 'Searching from the center of ' + S.city.name + '.', S.city.country), 'Show cheap spots');
 
 function cityView(app, bar, title, lead, next, label) {
   let timer, results = [], active = -1;
@@ -229,20 +234,24 @@ VIEWS.dates = (app, bar) => {
 
 /* --- step 3: group and budget --- */
 VIEWS.group = (app, bar) => {
+  const cur = curFor(S.city && S.city.country);
+  const b = curInfo(cur).budget;
+  if (S.budgetCur !== cur) { S.budget = b.default; S.budgetCur = cur; }
+  const m = v => fmtMoney(v, cur);
   const count = h('output', { 'aria-live': 'polite' }, String(S.people));
-  const money = h('div', { class: 'money', 'aria-live': 'polite' }, '$' + S.budget);
+  const money = h('div', { class: 'money', 'aria-live': 'polite' }, m(S.budget));
   const dec = h('button', { 'aria-label': 'One fewer person', onclick: () => bump(-1) }, '−');
   const inc = h('button', { 'aria-label': 'One more person', onclick: () => bump(1) }, '+');
   const bump = d => { S.people = Math.max(1, Math.min(20, S.people + d)); count.textContent = S.people; };
-  const slider = h('input', { type: 'range', min: 20, max: 150, step: 5, value: S.budget, 'aria-label': 'Budget per person per night' });
-  slider.addEventListener('input', () => { S.budget = +slider.value; money.textContent = '$' + S.budget; });
+  const slider = h('input', { type: 'range', min: b.min, max: b.max, step: b.step, value: S.budget, 'aria-label': 'Budget per person per night' });
+  slider.addEventListener('input', () => { S.budget = +slider.value; money.textContent = m(S.budget); });
   put(app, h('h2', {}, 'How many of you?'),
     h('div', { class: 'stepper' }, dec, count, inc),
     h('p', { class: 'help', style: 'text-align:center' }, 'Including you.'),
     h('h3', {}, 'Your limit per person, per night'),
     money, slider,
-    h('div', { class: 'chips', style: 'justify-content:center' }, ...[30, 50, 75, 100].map(v =>
-      h('button', { class: 'chip', onclick: () => { S.budget = v; slider.value = v; money.textContent = '$' + v; } }, '$' + v))),
+    h('div', { class: 'chips', style: 'justify-content:center' }, ...b.chips.map(v =>
+      h('button', { class: 'chip', onclick: () => { S.budget = v; slider.value = v; money.textContent = m(v); } }, m(v)))),
     h('p', { class: 'help' }, 'This covers food and drinks, not the ride home. If a plan runs over, we drop the last round first and tell you.'));
   setBar(bar, { label: 'Next', onclick: () => go('start'), ok: true });
 };
@@ -387,7 +396,8 @@ function costOf(n, s) { return s.slot === 'last' ? Math.round(s.place.price.mid 
 /* ---------- plan view ---------- */
 const mapsUrl = (p, city) => p.gmaps || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.name + ' ' + (p.address || '') + ' ' + city);
 const redditUrl = (p, city) => 'https://www.reddit.com/search/?q=' + encodeURIComponent(`${p.name} ${city} happy hour`);
-const money0 = n => '$' + Math.round(n);
+const curNow = () => (S.step === 'nearby' ? S.near.currency : S.plan && S.plan.currency) || 'USD';
+const money0 = (n, code) => fmtMoney(n, code || curNow());
 
 function placeTags(p, state, openLabel = 'Open then') {
   const t = [];
@@ -410,7 +420,9 @@ function dealRows(p, deals) {
 
 function addDealSheet(p, onAdded) {
   sheet('Add a deal at ' + p.name, close => {
-    const t = h('input', { type: 'text', maxlength: 140, placeholder: '$3 pints, $5 tacos, free pool...' });
+    const c = curInfo(curNow());
+    const ex = usd => money0(Math.max(c.step, Math.round(usd * c.factor / c.step) * c.step));
+    const t = h('input', { type: 'text', maxlength: 140, placeholder: `${ex(3)} pints, ${ex(5)} tacos, free pool...` });
     const w = h('input', { type: 'text', maxlength: 40, placeholder: 'When? Tue all night, Mon to Fri 4 to 7' });
     const err = h('p', { class: 'help', role: 'alert' });
     return h('div', {},
@@ -476,7 +488,7 @@ VIEWS.plan = (app, bar) => {
     heads.length ? h('div', { class: 'notice heads' + (heads.some(x => x.level === 'warn') ? ' warn' : '') }, h('h5', {}, 'Heads up'), h('ul', {}, ...heads.map(x => h('li', {}, x.text)))) : null,
     P.thin ? h('div', { class: 'banner warn' }, h('span', {}, 'The map only knows a few places here. '), h('button', { class: 'btn small line', style: 'margin-left:auto', onclick: widen }, 'Search wider')) : null,
     tl,
-    n.events && n.events.length ? h('div', { class: 'notice' }, h('h5', {}, 'Also on tonight'), h('ul', {}, ...n.events.map(e => h('li', {}, h('a', { href: e.url, target: '_blank', rel: 'noopener' }, e.name), ` at ${e.venue}${e.time ? ', ' + e.time : ''}${e.price_from != null ? ', from $' + Math.round(e.price_from) : ''}`)))) :
+    n.events && n.events.length ? h('div', { class: 'notice' }, h('h5', {}, 'Also on tonight'), h('ul', {}, ...n.events.map(e => h('li', {}, h('a', { href: e.url, target: '_blank', rel: 'noopener' }, e.name), ` at ${e.venue}${e.time ? ', ' + e.time : ''}${e.price_from != null ? ', from ' + fmtMoney(e.price_from, e.currency || P.currency) : ''}`)))) :
       h('p', { class: 'help' }, 'Looking for festivals and shows? ', h('a', { href: 'https://www.google.com/search?q=' + encodeURIComponent(`events in ${city} ${fmtDay(dateObj)}`), target: '_blank', rel: 'noopener' }, 'Search events that night'), '. ', h('a', { href: 'https://www.reddit.com/search/?q=' + encodeURIComponent(`${city} happy hour deals`), target: '_blank', rel: 'noopener' }, 'Reddit happy hour threads'), '.'),
     h('div', { class: 'notice' }, h('h5', {}, 'Before you head out'), h('ul', {}, ...P.safety.map(x => h('li', {}, x)))),
     h('div', { style: 'margin-top:14px' }, h('button', { class: 'btn small line', onclick: () => go('city') }, 'Change city, dates or start')),
@@ -531,6 +543,7 @@ function restoreFromHash() {
   try {
     const d = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
     Object.assign(S, { city: d.c, start: d.s, end: d.e, people: d.p, budget: d.b, stay: d.st, vibe: d.v, live: d.l, late: d.la, free: d.f, radius: d.r || 1500, picks: d.k || {} });
+    if (S.city) S.budgetCur = curFor(S.city.country);
     if (!S.city || !S.stay) return false;
     history.replaceState({ step: 'vibe' }, '', location.pathname);
     buildPlan(); return true;
@@ -545,15 +558,16 @@ function startNearby() {
     p => loadNearby({ lat: p.coords.latitude, lon: p.coords.longitude }, 'Searching around you.'),
     () => go('nearcity'), { timeout: 10000, maximumAge: 60000 });
 }
-async function loadNearby(at, note) {
-  if (at) S.near.at = at;
+async function loadNearby(at, note, country) {
+  if (at) { S.near.at = at; S.near.country = country || ''; }
   if (note) S.near.note = note;
   S.step = 'nearby'; S.near.results = null; S.near.err = ''; render();
   const now = new Date();
   try {
     const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode });
+    if (S.near.country) q.set('country', S.near.country);
     const j = await api('/api/nearby?' + q);
-    S.near.results = j.results; S.near.known = j.total_known; S.near.google = j.google;
+    S.near.results = j.results; S.near.known = j.total_known; S.near.google = j.google; S.near.currency = j.currency;
   } catch (e) { S.near.err = e.message; }
   if (S.step === 'nearby') render();
 }

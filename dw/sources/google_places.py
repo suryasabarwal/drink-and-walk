@@ -20,7 +20,7 @@ import json
 import time
 from typing import Any
 
-from .. import config, geo
+from .. import config, geo, money
 from ..places import FANCY, _vibe, estimate_price, merge_duplicates
 from . import SourceDown
 from .http import session, take_quota
@@ -111,20 +111,29 @@ def _amenity(types: set[str], primary: str) -> str:
 
 
 def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[str]) -> dict[str, Any]:
+    """Google's typical spend range in whatever currency Google gives, else a type-based guess.
+
+    The guess is in US dollars (see places.estimate_price) and money.localize converts it later.
+    A range in a currency the app does not know is skipped, since it can't be judged or converted,
+    and the place falls back to Google's price level."""
     p = estimate_price(amenity, name, {"cuisine": cuisine})
     level = g.get("priceLevel")
     tier = LEVEL_TIER.get(level)
     pricey_kind = bool(types & PRICEY_TYPES) or (g.get("servesCocktails") and not g.get("servesBeer") and amenity == "bar")
     rng = g.get("priceRange") or {}
     lo, hi = (rng.get("startPrice") or {}), (rng.get("endPrice") or {})
-    if lo.get("currencyCode") == "USD" and lo.get("units"):
+    cur = lo.get("currencyCode")
+    if lo.get("units") and money.known(cur):
         low = int(lo["units"])
-        high = int(hi["units"]) if hi.get("units") else low + 10
-        p.update(low=low, high=high, mid=round((low + high) / 2), basis=f"Google says people usually spend ${low} to ${high}")
-        tier = tier or ("cheap" if p["mid"] <= 14 else "ok" if p["mid"] <= 22 else "pricey")
+        high = int(hi["units"]) if hi.get("units") and hi.get("currencyCode", cur) == cur else low + money.nice(10 * money.factor(cur), cur)
+        p.update(low=low, high=high, mid=round((low + high) / 2), currency=cur, guess=False,
+                 basis=f"Google says people usually spend {money.fmt(low, cur)} to {money.fmt(high, cur)}")
+        # The thresholds below are US dollars, scaled to what the same night costs in this currency.
+        f = money.factor(cur)
+        tier = tier or ("cheap" if p["mid"] <= 14 * f else "ok" if p["mid"] <= 22 * f else "pricey")
         # Google calls $20 to $30 bars "moderate". For a drinks stop on a cheap night, that is not.
         drinks = amenity in ("bar", "pub", "nightclub")
-        if (drinks and (low >= 20 or high >= 45)) or (not drinks and (low >= 25 or high >= 60)):
+        if (drinks and (low >= 20 * f or high >= 45 * f)) or (not drinks and (low >= 25 * f or high >= 60 * f)):
             tier = "pricey"
     elif tier:
         scale = {"cheap": 0.85, "ok": 1.0, "pricey": 1.6}[tier]

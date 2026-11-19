@@ -86,7 +86,10 @@ def _vibe(tags: dict[str, str], name: str, amenity: str, live: bool) -> dict[str
 
 
 def estimate_price(amenity: str, name: str, tags: dict[str, str]) -> dict[str, Any]:
-    """Per-person estimate for one typical stop. Drinks stops assume two drinks."""
+    """Per-person estimate for one typical stop. Drinks stops assume two drinks.
+
+    These are US prices. money.localize scales them to the city's currency and price level, and
+    "guess" marks them so it knows they are not real local numbers."""
     cuisine = {c.strip() for c in tags.get("cuisine", "").lower().split(";") if c.strip()}
     fancy = bool(FANCY.search(name)) or "cocktails" in cuisine or "wine" in cuisine
     if amenity in DRINK_AMENITIES or amenity == "music_venue":
@@ -118,7 +121,8 @@ def estimate_price(amenity: str, name: str, tags: dict[str, str]) -> dict[str, A
         tier = "pricey" if fancy else ("cheap" if mid <= 13 else "ok")
     else:
         tier = "cheap" if mid <= 14 else ("ok" if mid <= 20 else "pricey")
-    return {"low": low, "high": high, "mid": round(mid), "tier": tier, "basis": basis, "estimate": True}
+    return {"low": low, "high": high, "mid": round(mid), "tier": tier, "basis": basis, "estimate": True,
+            "currency": "USD", "guess": True}
 
 
 def normalize(element: dict[str, Any]) -> dict[str, Any] | None:

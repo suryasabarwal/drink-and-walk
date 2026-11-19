@@ -9,6 +9,8 @@ import hashlib
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from . import money
+
 
 def maps_link(p: dict[str, Any]) -> str:
     if p.get("gmaps"):
@@ -18,19 +20,21 @@ def maps_link(p: dict[str, Any]) -> str:
 
 def to_text(plan: dict[str, Any]) -> str:
     people = plan["people"]
+    cur = plan.get("currency") or "USD"
+    m = lambda n: money.fmt(n, cur)  # noqa: E731
     lines = []
     for n in plan["nights"]:
         d = date.fromisoformat(n["date"])
         t = n["totals"]
         lines.append(f"DRINK AND WALK: {plan.get('city') or 'tonight'}")
-        lines.append(f"{d:%a %b} {d.day}, {people} {'person' if people == 1 else 'people'}, about ${t['per_person']} each (${t['group']} total)")
+        lines.append(f"{d:%a %b} {d.day}, {people} {'person' if people == 1 else 'people'}, about {m(t['per_person'])} each ({m(t['group'])} total)")
         if plan["stay"].get("name"):
             lines.append(f"Starting from: {plan['stay']['name']}")
         lines.append("")
         for i, s in enumerate(n["stops"]):
             p = s["place"]
             leg = n["legs"][i]
-            lines.append(f"{s['time']}  {s['label'].upper()}: {p['name']} (about ${s['cost']} each)")
+            lines.append(f"{s['time']}  {s['label'].upper()}: {p['name']} (about {m(s['cost'])} each)")
             if p.get("address"):
                 lines.append(f"   {p['address']}")
             lines.append(f"   {maps_link(p)}")
@@ -69,6 +73,7 @@ def to_ics(plan: dict[str, Any], now: datetime | None = None) -> str:
     stamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//drink-and-walk//plan//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"]
     count = 0
+    cur = plan.get("currency") or "USD"
     for n in plan["nights"]:
         d = date.fromisoformat(n["date"])
         for i, s in enumerate(n["stops"]):
@@ -77,7 +82,7 @@ def to_ics(plan: dict[str, Any], now: datetime | None = None) -> str:
             length = 60 if s["slot"] in ("eat", "late") else 75
             end = start + timedelta(minutes=length)
             uid = hashlib.sha1(f"{n['date']}{s['slot']}{p['id']}".encode()).hexdigest()[:16]
-            desc = f"{s['label']}. About ${s['cost']} each (estimate). {maps_link(p)}"
+            desc = f"{s['label']}. About {money.fmt(s['cost'], cur)} each (estimate). {maps_link(p)}"
             lines += [
                 "BEGIN:VEVENT",
                 f"UID:{uid}@drink-and-walk.local",
