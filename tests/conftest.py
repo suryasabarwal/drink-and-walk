@@ -16,6 +16,9 @@ def _isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(config, "TICKETMASTER_KEY", "")
+    from dw.sources import overpass, weather
+    overpass._resting.clear()
+    weather._cache.clear()
 
 
 @pytest.fixture

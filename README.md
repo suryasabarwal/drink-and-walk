@@ -62,14 +62,30 @@ Optional environment variables:
 
 ## Deploy free on Render
 
-1. New, then **Web Service** (not Blueprint). Pick this repo.
-2. Build command: `pip install -r requirements.txt`
-3. Start command: `gunicorn app:app`
-4. Instance type: Free. It sleeps when idle and takes about a minute to wake.
+Easiest: in Render, New, then **Blueprint**, and pick this repo. `render.yaml` sets up a free web
+service with a health check on `/healthz`.
+
+By hand instead: New, then **Web Service**, pick this repo, and use
+
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn app:app`
+- Instance type: Free. It sleeps when idle and takes about a minute to wake.
+
+`gunicorn.conf.py` is picked up automatically. It runs one worker with eight threads (the rate
+limits and caches live in memory, so they need one process) and a 120 second timeout, because a
+plan can wait on the main map server and then the backup. Python is pinned in `.python-version`.
 
 The deal board and map cache live on local disk. On free hosting that disk resets when the app
 restarts, so deals and cache can disappear. Fine for a demo. For real use, point `DW_DATA_DIR` at a
 persistent disk or swap the JSON file for a small database.
+
+### When the free sources say no
+
+- **Overpass** servers get busy, and some refuse cloud IP ranges. A server that fails is rested for
+  three minutes so visitors get a quick answer instead of a long wait, and an answer with a
+  "runtime error" remark is treated as a failure, never cached as an empty neighborhood.
+- **Open-Meteo** has a daily limit per IP, and free hosts share IPs. Forecasts are cached for three
+  hours, and when the forecast can't be reached the plan says so instead of leaving it out quietly.
 
 ## Tests
 

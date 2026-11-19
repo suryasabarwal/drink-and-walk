@@ -43,7 +43,8 @@ def _holiday_text(name: str, kind: str) -> str:
     return f"{name} weekend. Expect crowds and some higher prices."
 
 
-def banners(dates: list[date], country: str, weather: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
+def banners(dates: list[date], country: str, weather: dict[str, dict[str, Any]] | None) -> list[dict[str, str]]:
+    """weather is None when the forecast should exist but could not be fetched."""
     out: list[dict[str, str]] = []
     seen: set[str] = set()
 
@@ -68,6 +69,9 @@ def banners(dates: list[date], country: str, weather: dict[str, dict[str, Any]])
                         add("warn", _holiday_text(hol[mon][0], "long"))
     if any(d.weekday() in (4, 5) for d in dates):
         add("info", "Friday and Saturday nights cost more. Many happy hours are weekday only, so ask before you assume.")
+    if weather is None:
+        add("info", "Could not reach the weather forecast just now. Check one before you head out.")
+        weather = {}
     for d in dates:
         w = weather.get(d.isoformat())
         if not w:

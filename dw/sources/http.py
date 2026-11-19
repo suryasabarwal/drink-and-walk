@@ -6,11 +6,19 @@ import time
 from datetime import datetime, timezone
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .. import config
 
 session = requests.Session()
 session.headers.update({"User-Agent": config.USER_AGENT})
+# Free APIs drop connections now and then. Retry a GET that never got an answer, or got a 502-504,
+# a couple of times with a short pause. Never retry 429 (that would only make a rate limit worse)
+# and never retry the Overpass POST here: it has its own backup server.
+_retry = Retry(total=2, connect=2, read=1, status=2, backoff_factor=0.8,
+               status_forcelist=(502, 503, 504), allowed_methods=frozenset({"GET"}), respect_retry_after_header=True)
+session.mount("https://", HTTPAdapter(max_retries=_retry))
 
 _locks: dict[str, threading.Lock] = {}
 _last: dict[str, float] = {}

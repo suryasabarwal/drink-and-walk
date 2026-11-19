@@ -18,7 +18,8 @@ FOOD_ROLE = {"restaurant", "fast_food", "food_court"}
 TIER_BONUS = {"cheap": 0.5, "ok": 0.15, "pricey": -9.0}
 # The "last one" stop is one round, not two, so it counts for half.
 COST_FACTOR = {"last": 0.5}
-TRIM_ORDER = ["last", "breather"]
+# Over budget: the last round goes first, then the optional late bite, then the breather.
+TRIM_ORDER = ["last", "late", "breather"]
 
 
 def stop_cost(slot: str, place: dict[str, Any]) -> tuple[int, int, int]:
@@ -258,6 +259,16 @@ def finalize(plan: dict[str, Any]) -> dict[str, Any]:
     return plan
 
 
+def _late_confirmed(place, day: int, minute: int) -> bool:
+    """Open now and confirmed open past 11:30 pm tonight (or for another hour, if it is already late)."""
+    tonight_late = 23 * 60 + 30
+    if minute < 5 * 60:  # after midnight counts as the night before
+        day, minute = (day - 1) % 7, minute + 1440
+    if open_state(place, day, minute, span=30) is not True:
+        return False
+    return open_state(place, day, max(minute, tonight_late), span=60) is True
+
+
 def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, radius=1200) -> list[dict[str, Any]]:
     out = []
     for p in places:
@@ -280,7 +291,7 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
         state = open_state(p, day, minute, span=30)
         if state is False:
             continue
-        if mode == "late" and open_state(p, day, minute, span=90) is not True:
+        if mode == "late" and not _late_confirmed(p, day, minute):
             continue
         score = TIER_BONUS[p["price"]["tier"]] - 1.2 * dist / 1000 + (0.6 if deals.get(p["id"]) else 0) - (0.2 if state is None else 0)
         out.append((score, p, dist, state))

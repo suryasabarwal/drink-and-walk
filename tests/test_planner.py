@@ -137,3 +137,31 @@ def test_alternatives_never_repeat_a_place_used_elsewhere_that_night(places):
     used = {s["place"]["id"] for s in stops(p)}
     for s in stops(p):
         assert not any(a["place"]["id"] in used for a in s["alternatives"])
+
+
+def test_over_budget_drops_last_round_then_late_bite(places):
+    from datetime import date, timedelta
+    from dw import planner
+    fri = date.today() + timedelta(days=(4 - date.today().weekday()) % 7 + 7)
+    stay = {"lat": 42.8864, "lon": -78.8784, "name": "Test Hotel"}
+    roomy = planner.build_plan(places, stay, [fri], 2, 300, "dive", False, True, False, {}, [])["nights"][0]
+    slots = [s["slot"] for s in roomy["stops"]]
+    assert "late" in slots and "last" in slots
+    full = roomy["totals"]["per_person"]
+    last = next(s["cost"] for s in roomy["stops"] if s["slot"] == "last")
+    tight = planner.build_plan(places, stay, [fri], 2, full - last - 1, "dive", False, True, False, {}, [])["nights"][0]
+    kept = [s["slot"] for s in tight["stops"]]
+    assert "last" not in kept and "late" not in kept
+    assert tight["tips"][0].startswith("Dropped the last one")
+
+
+def test_nearby_late_food_means_open_late_not_just_open_now():
+    from dw import planner
+    def place(i, hours):
+        return {"id": f"n{i}", "name": f"P{i}", "lat": 0.0, "lon": 0.0, "amenity": "fast_food", "live_music": False,
+                "ticketed": False, "no_cover": False, "price": {"tier": "cheap", "mid": 9, "low": 7, "high": 11}, "hours_raw": hours}
+    ps = [place(1, "Mo-Su 11:00-20:00"), place(2, "Mo-Su 11:00-03:00"), place(3, None)]
+    got = [r["place"]["id"] for r in planner.nearby(ps, 0.0, 0.0, 4, 18 * 60, "late", {})]
+    assert got == ["n2"]
+    after_midnight = [r["place"]["id"] for r in planner.nearby(ps, 0.0, 0.0, 5, 60, "late", {})]
+    assert after_midnight == ["n2"]

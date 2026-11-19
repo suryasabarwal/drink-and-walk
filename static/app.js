@@ -356,7 +356,8 @@ function applyPicks() {
   for (const n of S.plan.nights) n.stops.forEach((st, i) => {
     const want = S.picks[pickKey(n, st.slot)];
     if (!want || st.place.id === want) return;
-    const j = st.alternatives.findIndex(a => a.place.id === want);
+    if (n.stops.some(o => o.place.id === want)) return; // never the same place twice in one night
+    const j = (st.alternatives || []).findIndex(a => a.place.id === want);
     if (j < 0) return;
     swapTo(n, i, j); changed = true;
   });
@@ -468,7 +469,7 @@ VIEWS.plan = (app, bar) => {
   put(app, 
     h('h2', {}, `${city}, ${fmtDay(dateObj)}`),
     h('p', { class: 'help' }, `${P.people} ${P.people === 1 ? 'person' : 'people'} · ${S.vibe} · from ${P.stay.name}`,
-      wx ? ` · ${temp(wx.lo_c)} to ${temp(wx.hi_c)}${wx.rain_pct != null ? ', ' + wx.rain_pct + '% rain' : ''}` : ''),
+      wx && wx.lo_c != null && wx.hi_c != null ? ` · ${temp(wx.lo_c)} to ${temp(wx.hi_c)}${wx.rain_pct != null ? ', ' + wx.rain_pct + '% rain' : ''}` : ''),
     tabs, metric,
     heads.length ? h('div', { class: 'notice heads' + (heads.some(x => x.level === 'warn') ? ' warn' : '') }, h('h5', {}, 'Heads up'), h('ul', {}, ...heads.map(x => h('li', {}, x.text)))) : null,
     P.thin ? h('div', { class: 'banner warn' }, h('span', {}, 'The map only knows a few places here. '), h('button', { class: 'btn small line', style: 'margin-left:auto', onclick: widen }, 'Search wider')) : null,

@@ -5,6 +5,8 @@ The public servers ask for light use, so this:
   * counts real queries against a daily budget shared by all visitors
   * tries a backup server if the first one fails
   * falls back to an older cached answer if every server is down
+  * rests a server for a few minutes after it fails, so an outage does not make every visitor
+    wait on the same dead server or burn the daily budget
 """
 from __future__ import annotations
 
@@ -17,6 +19,17 @@ from . import SourceDown
 from .http import session, take_quota, throttle
 
 GRID = 0.005  # about 550 m
+COOLDOWN_S = 180
+_resting: dict[str, float] = {}  # server url -> time it may be tried again
+
+
+def _incomplete(payload: dict[str, Any]) -> str | None:
+    """Overpass can answer 200 with a 'runtime error' remark (timeout, out of memory) and a
+    partial or empty list. That is a failure, not an empty neighborhood, so it must not be cached."""
+    remark = str(payload.get("remark") or "")
+    if "error" in remark.lower():
+        return remark[:80]
+    return None
 
 
 def build_query(lat: float, lon: float, radius: int) -> str:
@@ -60,18 +73,30 @@ def _run(path, query: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         return cached["elements"], {"source": "cache", "age_hours": round((time.time() - cached["fetched"]) / 3600)}
 
     error = "no servers tried"
-    if take_quota("overpass", config.OVERPASS_DAILY_LIMIT):
-        for url in config.OVERPASS_SERVERS:
+    now = time.time()
+    servers = [u for u in config.OVERPASS_SERVERS if _resting.get(u, 0) <= now]
+    if not servers:
+        error = "map servers failed a moment ago, resting them"
+    elif take_quota("overpass", config.OVERPASS_DAILY_LIMIT):
+        for url in servers:
+            host = url.split("/")[2]
             try:
                 throttle("overpass", 1.0)
-                r = session.post(url, data={"data": query}, timeout=config.HTTP_TIMEOUT)
+                r = session.post(url, data={"data": query}, timeout=config.OVERPASS_HTTP_TIMEOUT)
                 if r.status_code == 200:
-                    elements = r.json().get("elements", [])
-                    _write_cache(path, elements)
-                    return elements, {"source": "live", "server": url.split("/")[2]}
-                error = f"{url.split('/')[2]} answered {r.status_code}"
+                    payload = r.json()
+                    bad = _incomplete(payload)
+                    if bad is None:
+                        elements = payload.get("elements", [])
+                        _write_cache(path, elements)
+                        _resting.pop(url, None)
+                        return elements, {"source": "live", "server": host}
+                    error = f"{host} gave a partial answer: {bad}"
+                else:
+                    error = f"{host} answered {r.status_code}"
             except (OSError, ValueError) as exc:  # requests errors are OSError subclasses
-                error = f"{url.split('/')[2]}: {type(exc).__name__}"
+                error = f"{host}: {type(exc).__name__}"
+            _resting[url] = time.time() + COOLDOWN_S
     else:
         error = "daily map-data budget used up"
 

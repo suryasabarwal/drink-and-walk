@@ -37,7 +37,8 @@ def limited(name: str, per_minute: int):
 
 @app.errorhandler(SourceDown)
 def _source_down(exc):
-    return jsonify(error="The free map data is busy or unreachable right now. Try again in a minute.", detail=str(exc)), 503
+    what = "City search" if str(exc).startswith("city search") else "Address search" if str(exc).startswith("address search") else "The free map data"
+    return jsonify(error=f"{what} is busy or unreachable right now. Try again in a minute.", detail=str(exc)), 503
 
 
 @app.after_request
@@ -150,7 +151,7 @@ def make_plan():
     plan["safety"] = voice.UI["safety"] if r["city"]["country"] == "US" else voice.UI["safety"][:3]
     plan["events_enabled"] = ticketmaster.enabled()
     for n in plan["nights"]:
-        n["weather"] = wx.get(n["date"])
+        n["weather"] = (wx or {}).get(n["date"])
     return jsonify(_attach_text(plan))
 
 

@@ -136,12 +136,31 @@ def test_daily_budget_stops_hammering_the_public_server(monkeypatch):
     assert not called
 
 
-def test_weather_failure_returns_empty(monkeypatch):
+def test_weather_failure_is_reported_not_hidden(monkeypatch):
+    from dw import notes
     from dw.sources import weather
     def down(*a, **k): raise requests.ConnectionError("no")
     monkeypatch.setattr(weather.session, "get", down)
-    assert weather.forecast(1, 1, date.today(), date.today()) == {}
+    assert weather.forecast(1, 1, date.today(), date.today()) is None
+    assert "weather forecast" in notes.banners([date.today()], "US", None)[0]["text"]
+    # past the forecast range there is nothing to know yet, which is not a failure
     assert weather.forecast(1, 1, date.today() + timedelta(days=40), date.today() + timedelta(days=41)) == {}
+
+
+def test_weather_parses_and_caches(monkeypatch):
+    from dw.sources import weather
+    t = date.today()
+    days = [(t + timedelta(days=i)).isoformat() for i in range(16)]
+    body = {"daily": {"time": days, "temperature_2m_max": [30] * 16, "temperature_2m_min": [-2] * 16, "precipitation_probability_max": [None] + [70] * 15}}
+    calls = []
+    def get(url, params=None, timeout=None):
+        calls.append(params)
+        return FakeResp(200, body)
+    monkeypatch.setattr(weather.session, "get", get)
+    wx = weather.forecast(30.27, -97.74, t, t + timedelta(days=1))
+    assert set(wx) == set(days[:2]) and wx[days[0]]["rain_pct"] is None and wx[days[1]]["lo_c"] == -2
+    weather.forecast(30.2701, -97.7399, t + timedelta(days=2), t + timedelta(days=3))
+    assert len(calls) == 1  # second plan nearby reuses the cached forecast
 
 
 def test_ticketmaster_off_without_key_and_failure_safe(monkeypatch):
@@ -153,3 +172,48 @@ def test_ticketmaster_off_without_key_and_failure_safe(monkeypatch):
     monkeypatch.setattr(ticketmaster.session, "get", down)
     monkeypatch.setattr(ticketmaster, "throttle", lambda *a: None)
     assert ticketmaster.events(1, 1, date.today(), date.today()) == []
+
+
+def test_overpass_partial_answer_is_not_cached_and_backup_is_tried(monkeypatch, elements):
+    from dw.sources import overpass
+    calls = []
+    def post(url, data=None, timeout=None):
+        calls.append(url)
+        if "overpass-api.de" in url:
+            return FakeResp(200, {"elements": [], "remark": "runtime error: Query timed out in \"query\" at line 3"})
+        return FakeResp(200, {"elements": elements})
+    monkeypatch.setattr(overpass.session, "post", post)
+    monkeypatch.setattr(overpass, "throttle", lambda *a: None)
+    els, meta = overpass.fetch_elements(20.0, 20.0, 1500)
+    assert len(calls) == 2 and els and meta["server"] == "overpass.private.coffee"
+
+
+def test_failed_server_rests_instead_of_making_every_visitor_wait(monkeypatch, elements):
+    from dw.sources import overpass, SourceDown
+    monkeypatch.setattr(overpass, "throttle", lambda *a: None)
+    calls = []
+    def down(url, **k):
+        calls.append(url)
+        raise requests.ConnectTimeout("slow")
+    monkeypatch.setattr(overpass.session, "post", down)
+    with pytest.raises(SourceDown):
+        overpass.fetch_elements(30.0, 30.0, 1500)
+    assert len(calls) == 2
+    with pytest.raises(SourceDown):
+        overpass.fetch_elements(31.0, 31.0, 1500)
+    assert len(calls) == 2  # both servers resting, no new waits, no quota spent
+
+
+def test_city_search_down_names_the_right_source(monkeypatch, client):
+    from dw.sources import geocode, SourceDown
+    def boom(*a, **k):
+        raise SourceDown("city search: ConnectionError")
+    monkeypatch.setattr(geocode, "search_cities", boom)
+    r = client.get("/api/cities?q=austin")
+    assert r.status_code == 503 and r.json["error"].startswith("City search is busy")
+
+
+def test_http_session_retries_dropped_gets_but_not_rate_limits():
+    from dw.sources.http import session
+    retry = session.get_adapter("https://example.org").max_retries
+    assert retry.total >= 1 and 429 not in retry.status_forcelist and "POST" not in retry.allowed_methods

@@ -45,3 +45,13 @@ def test_unreadable_is_unknown_not_a_guess(bad):
 
 def test_ph_off_is_ignored():
     assert parse("Mo-Fr 09:00-17:00; PH off").is_open(1, h(10)) is True
+
+
+def test_holiday_token_in_a_day_list_keeps_the_plain_days():
+    x = parse("Mo-Sa 11:00-22:00; Su,PH 12:00-21:00")
+    assert x.known and x.is_open(6, h(20)) is True and x.is_open(6, h(21, 30)) is False
+
+
+def test_colon_after_days_and_spaced_ranges():
+    assert parse("Mo-Fr: 11:00-22:00").is_open(FRI, h(21)) is True
+    assert parse("Mo - Fr 11:00-22:00").is_open(MON, h(12)) is True

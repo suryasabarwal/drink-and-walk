@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: drink-and-walk
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: DW_OVERPASS_DAILY_LIMIT
+        value: "80"
+      - key: TICKETMASTER_KEY
+        sync: false

@@ -20,7 +20,12 @@ MAX_DEALS = 2000
 EXPIRE_DAYS = 180
 _lock = threading.Lock()
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
-_LINKY = re.compile(r"https?:|www\.|\.com|\.net|\.org|@", re.I)
+# Links and emails, including bare domains like bit.ly/x. A lone "@" is fine: "$5 wings @ the bar".
+_LINKY = re.compile(
+    r"https?:|www\.|://|\S+@\S+\.[a-z]{2,}|"
+    r"\b[a-z0-9-]+\.(com|net|org|io|co|ly|me|app|info|biz|us|uk|ca|xyz|gg|link|site|online|shop|bar|pub)\b",
+    re.I,
+)
 
 
 class DealError(ValueError):

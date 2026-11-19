@@ -92,9 +92,15 @@ def parse(text: str | None) -> Hours:
         rule = rule.strip()
         if not rule:
             continue
-        if re.search(r"\bPH\b|sunrise|sunset|week|dawn|dusk|\[|\"|easter", rule, re.I):
+        # "Su,PH 12:00-21:00" is common. The Sunday part is plain, so keep it and drop the PH token.
+        m = re.match(r"^([A-Za-z]{2}(?:\s*[,\-]\s*[A-Za-z]{2})*)\s*:?\s+(.+)$", rule)
+        if m and re.search(r"\b(PH|SH)\b", m.group(1)):
+            kept = [t for t in re.split(r"\s*,\s*", m.group(1)) if t.strip().upper() not in ("PH", "SH")]
+            if kept and not any(re.search(r"\b(PH|SH)\b", t) for t in kept):
+                rule = ",".join(kept) + " " + m.group(2)
+        if re.search(r"\bPH\b|\bSH\b|sunrise|sunset|week|dawn|dusk|\[|\"|easter", rule, re.I):
             # Public-holiday and sun-based rules: skip pure PH rules, give up on the rest.
-            if re.fullmatch(r"PH\s+(off|closed)", rule, re.I):
+            if re.fullmatch(r"(PH|SH)\s+(off|closed)", rule, re.I):
                 continue
             return Hours(None)
         m = re.match(r"^([A-Za-z,\- ]+?)\s+(off|closed)$", rule, re.I)
@@ -105,9 +111,9 @@ def parse(text: str | None) -> Hours:
             for d in days:
                 week[d] = []
             continue
-        m = re.match(r"^([A-Za-z,\-]+)\s+(\d.*)$", rule)
+        m = re.match(r"^([A-Za-z]{2}(?:\s*[,\-]\s*[A-Za-z]{2})*)\s*:?\s+(\d.*)$", rule)
         if m:
-            days = _expand_days(m.group(1))
+            days = _expand_days(re.sub(r"\s+", "", m.group(1)))
             times = _times(m.group(2))
         elif re.match(r"^\d", rule):
             days = list(range(7))

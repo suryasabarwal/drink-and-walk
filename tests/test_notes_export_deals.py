@@ -62,3 +62,13 @@ def test_old_deals_expire(monkeypatch):
     real = time.time
     monkeypatch.setattr(time, "time", lambda: real() + 200 * 86400)
     assert deals.for_places({"n1002"}) == {}
+
+
+def test_deal_text_allows_at_sign_but_not_links():
+    import pytest
+    from dw import deals
+    assert deals.clean("$5 wings @ the bar", 1, 140, "deal")
+    assert deals.clean("$3.50 pints all night", 1, 140, "deal")
+    for bad in ("see bit.ly/x", "mail me at a@b.co", "https://x", "www.cheap", "promo at cheapbeer.com"):
+        with pytest.raises(deals.DealError):
+            deals.clean(bad, 1, 140, "deal")

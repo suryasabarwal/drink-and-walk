@@ -30,3 +30,5 @@ MAX_PEOPLE = 20
 WALK_M_PER_MIN = 80       # about 4.8 km/h
 DETOUR_FACTOR = 1.25      # streets are not straight lines
 HTTP_TIMEOUT = 25
+# Overpass queries ask the server for up to 25 s of work; leave room for the answer to arrive.
+OVERPASS_HTTP_TIMEOUT = 35
