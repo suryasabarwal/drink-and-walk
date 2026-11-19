@@ -36,8 +36,9 @@ FAKE = {
         gp(3, "Corner Taps", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", hours=LATE, servesBeer=True),
     ],
     "bars_close": [gp(10, "Grand Lobby Hotel", "hotel", ["hotel", "lodging", "bar"]),
-                   gp(11, "Oak Barrel Room", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (20, 30), hours=LATE, servesBeer=True),
-                   gp(12, "Wide Range Saloon", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (10, 50), hours=LATE, servesBeer=True),
+                   gp(11, "Oak Barrel Room", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (30, 60), hours=LATE, servesBeer=True),
+                   gp(17, "Regular Joe Bar", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (20, 30), hours=LATE, servesBeer=True),
+                   gp(12, "Wide Range Saloon", "bar", ["bar"], "PRICE_LEVEL_MODERATE", (10, 60), hours=LATE, servesBeer=True),
                    gp(13, "Ten Dollar Taps", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", (10, 20), hours=LATE, servesBeer=True),gp(4, "Blue Door Bar", "bar", ["bar"], "PRICE_LEVEL_MODERATE", hours=LATE, servesBeer=True, rating=2.9, userRatingCount=80),
                    gp(9, "Closed Forever Tavern", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", hours=LATE, businessStatus="CLOSED_PERMANENTLY")],
     "cheap_food": [gp(5, "Slice Window", "pizza_restaurant", ["pizza_restaurant", "restaurant"], "PRICE_LEVEL_INEXPENSIVE", (10, 20), hours=every_day(11, 0, 3, 0, True))],
@@ -87,6 +88,7 @@ def test_normalize_prices_hours_and_flags(google):
     assert "Grand Lobby Hotel" not in p
     assert p["Oak Barrel Room"]["price"]["tier"] == "pricey" and p["Wide Range Saloon"]["price"]["tier"] == "pricey"
     assert p["Ten Dollar Taps"]["price"]["tier"] == "cheap"
+    assert p["Regular Joe Bar"]["price"]["tier"] == "ok"  # an ordinary bar night stays in play
 
 
 def test_google_hours_overnight_and_closed():
