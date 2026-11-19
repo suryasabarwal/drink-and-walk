@@ -17,7 +17,7 @@ from .places import DRINK_AMENITIES, TICKETED, open_state
 FOOD_ROLE = {"restaurant", "fast_food", "food_court"}
 TIER_BONUS = {"cheap": 0.5, "ok": 0.15, "pricey": -9.0}
 # The "last one" stop is one round, not two, so it counts for half.
-COST_FACTOR = {"last": 0.5}
+COST_FACTOR = {"last": 0.5, "breather": 0.5}  # one round, not two
 # Over budget: the last round goes first, then the optional late bite, then the breather.
 TRIM_ORDER = ["last", "late", "breather"]
 MAX_ALTS = 10
@@ -44,6 +44,9 @@ def _low_rated(place: dict[str, Any]) -> bool:
 
 
 def stop_cost(slot: str, place: dict[str, Any]) -> tuple[int, int, int]:
+    if slot == "breather" and place.get("amenity") == "cafe":
+        # a coffee and a snack, not the brunch spend Google lists for the cafe
+        return 7, 5, 9
     f = COST_FACTOR.get(slot, 1.0)
     pr = place["price"]
     return round(pr["mid"] * f), round(pr["low"] * f), round(pr["high"] * f)
@@ -126,7 +129,7 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
         return None
     if role == "late" and state is not True:
         return None
-    s = 1.0 + TIER_BONUS[tier] - place["price"]["mid"] / 100
+    s = 1.0 + TIER_BONUS[tier] - stop_cost(slot["key"], place)[0] / 100
     if role in ("drink", "music", "chilldrink", "breather"):
         s += 0.5 * place["vibe"][vibe]
     if ctx["deals"].get(pid):

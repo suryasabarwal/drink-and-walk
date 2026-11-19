@@ -179,3 +179,12 @@ def test_swap_options_never_repeat_a_name(places):
     for s in n["stops"]:
         names = [a["place"]["name"] for a in s["alternatives"]] + [s["place"]["name"]]
         assert len(names) == len(set(names))
+
+
+def test_breather_costs_a_coffee_not_the_cafes_brunch_prices():
+    from dw import planner
+    cafe = {"amenity": "cafe", "price": {"low": 20, "high": 30, "mid": 25, "tier": "ok"}}
+    bar = {"amenity": "bar", "price": {"low": 10, "high": 20, "mid": 15, "tier": "cheap"}}
+    assert planner.stop_cost("breather", cafe) == (7, 5, 9)
+    assert planner.stop_cost("breather", bar)[0] == 8  # one round
+    assert planner.stop_cost("eat", cafe)[0] == 25
