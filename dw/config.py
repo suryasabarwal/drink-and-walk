@@ -25,7 +25,7 @@ TICKETMASTER_KEY = os.environ.get("TICKETMASTER_KEY", "")
 
 # Optional: Google Places (New). Real price levels, hours, live music flags and ratings.
 GOOGLE_PLACES_KEY = os.environ.get("GOOGLE_PLACES_KEY", "")
-# Calls a day across all visitors. A plan costs 4 to 6 calls, fewer when cached.
+# Calls a day across all visitors. A new area costs 6 to 8 calls, then nothing for 12 hours.
 GOOGLE_DAILY_LIMIT = int(os.environ.get("DW_GOOGLE_DAILY_LIMIT", "30"))
 GOOGLE_CACHE_HOURS = 12
 

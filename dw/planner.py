@@ -20,6 +20,27 @@ TIER_BONUS = {"cheap": 0.5, "ok": 0.15, "pricey": -9.0}
 COST_FACTOR = {"last": 0.5}
 # Over budget: the last round goes first, then the optional late bite, then the breather.
 TRIM_ORDER = ["last", "late", "breather"]
+MAX_ALTS = 10
+# Big chains are cheap but not why anyone goes out. A late-night slice from one is fine.
+CHAIN_NAMES = re.compile(
+    r"^(tim hortons|starbucks|mcdonald'?s|burger king|wendy'?s|subway|dunkin|taco bell|kfc|domino'?s|"
+    r"pizza hut|papa john'?s|chipotle|panera|costa coffee|pret|greggs|five guys|popeyes|chick-fil-a|"
+    r"applebee'?s|olive garden|tgi friday'?s|buffalo wild wings|denny'?s|ihop|7-eleven)\b",
+    re.I,
+)
+
+
+def chain_names(places: list[dict[str, Any]]) -> set[str]:
+    """Names that are known chains, or that show up as three or more branches in the area."""
+    count: dict[str, int] = {}
+    for p in places:
+        count[p["name"].lower()] = count.get(p["name"].lower(), 0) + 1
+    return {n for n, c in count.items() if c >= 3 or CHAIN_NAMES.match(n)}
+
+
+def _low_rated(place: dict[str, Any]) -> bool:
+    r, n = place.get("rating"), place.get("rating_count") or 0
+    return r is not None and n >= 15 and r < 3.5
 
 
 def stop_cost(slot: str, place: dict[str, Any]) -> tuple[int, int, int]:
@@ -92,6 +113,8 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
     tier = place["price"]["tier"]
     if tier == "pricey" and not ctx["allow_pricey"]:
         return None
+    if _low_rated(place) and not ctx["allow_pricey"]:  # same fallback pass: only when nothing else fits
+        return None
     pid = place["id"]
     if pid in night["used"]:
         return None
@@ -107,7 +130,7 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
     if role in ("drink", "music", "chilldrink", "breather"):
         s += 0.5 * place["vibe"][vibe]
     if ctx["deals"].get(pid):
-        s += 0.6
+        s += 1.0  # a visitor-confirmed deal is the strongest sign of cheap the app has
     if place.get("happy_hint") and slot["key"] == "happy":
         s += 0.4
     if ctx["free_only"] and place["no_cover"]:
@@ -119,7 +142,14 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
     s += rating_bonus(place)
     if pid in ctx["used_other_nights"]:
         s -= 1.0
+    if place["name"].lower() in ctx.get("chains", ()):
+        s -= 0.15 if role == "late" else 0.6
     s -= 0.9 * dist / 1000
+    if slot["key"] in ("last", "late") and ctx.get("stay"):
+        # You walk home after this one anyway, so count that walk too, and a little more, so the
+        # last round lands on the way back instead of next to the main stop.
+        home = geo.haversine_m(ctx["stay"]["lat"], ctx["stay"]["lon"], place["lat"], place["lon"])
+        s -= 1.2 * home / 1000
     return s, state, dist
 
 
@@ -144,15 +174,43 @@ def _stop_view(place, slot, state, dist, ctx, vibe) -> dict[str, Any]:
     }
 
 
+def _share_alternatives(stops, ranked, ctx, vibe) -> None:
+    """Swap options for each stop, dealt out in turns so every stop gets its best remaining
+    options and no place (or second branch of a chain) shows up under two stops in one night."""
+    taken_ids = {s["place"]["id"] for s in stops}
+    taken_names = {s["place"]["name"].lower() for s in stops}
+    queues = [list(r[1]) for r in ranked]
+    for s in stops:
+        s["alternatives"] = []
+    progress = True
+    while progress:
+        progress = False
+        for s, (slot, _), q in zip(stops, ranked, queues):
+            if len(s["alternatives"]) >= MAX_ALTS:
+                continue
+            while q:
+                score, state, dist, p = q.pop(0)
+                nm = p["name"].lower()
+                if p["id"] in taken_ids or nm in taken_names:
+                    continue
+                taken_ids.add(p["id"])
+                taken_names.add(nm)
+                s["alternatives"].append(_stop_view(p, slot, state, dist, ctx, vibe))
+                progress = True
+                break
+
+
 def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[str, Any]:
     night = {"weekday": day.weekday(), "used": set()}
     ctx = {**ctx, "used_other_nights": used_other_nights}
     prev = (stay["lat"], stay["lon"])
     stops: list[dict[str, Any]] = []
     missing: list[str] = []
+    ranked: list[list[tuple]] = []
     for slot in slots_for(day.weekday(), vibe, ctx["live_music"], ctx["late_night"]):
         chosen = None
-        for cap in (1500, 3500):
+        caps = (1000, 1500, 3500) if slot["key"] in ("last", "late") else (1500, 3500)
+        for cap in caps:
             scored = []
             for p in places:
                 r = _score(p, slot, prev, vibe, ctx, night, cap)
@@ -173,24 +231,11 @@ def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[s
             continue
         best = chosen[0]
         stop = _stop_view(best[3], slot, best[1], best[2], ctx, vibe)
-        stop["alternatives"] = [_stop_view(a[3], slot, a[1], a[2], ctx, vibe) for a in chosen[1:10]]
-        for alt in stop["alternatives"]:
-            alt.pop("alternatives", None)
         stops.append(stop)
+        ranked.append((slot, chosen[1:]))
         night["used"].add(best[3]["id"])
         prev = (best[3]["lat"], best[3]["lon"])
-    # A runner-up for one slot must not be a place already used in another slot tonight.
-    chosen_ids = {s["place"]["id"] for s in stops}
-    chosen_names = {s["place"]["name"].lower() for s in stops}
-    for s in stops:
-        alts, names = [], set(chosen_names)
-        for a in s["alternatives"]:
-            nm = a["place"]["name"].lower()
-            if a["place"]["id"] in chosen_ids or nm in names:
-                continue  # also skips a second branch of the same chain
-            names.add(nm)
-            alts.append(a)
-        s["alternatives"] = alts
+    _share_alternatives(stops, ranked, ctx, vibe)
     return {"date": day.isoformat(), "weekday": day.strftime("%a"), "stops": stops, "missing": missing}
 
 
@@ -202,6 +247,8 @@ def build_plan(places, stay, days: list[date], people, budget_pp, vibe, live_mus
         "deals": deals,
         "allow_pricey": False,
         "allow_pricey_fallback": True,
+        "chains": chain_names(places),
+        "stay": stay,
     }
     nights, used_all = [], set()
     for d in days:

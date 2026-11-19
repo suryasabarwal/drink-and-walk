@@ -43,6 +43,9 @@ FAKE = {
     "cheap_food": [gp(5, "Slice Window", "pizza_restaurant", ["pizza_restaurant", "restaurant"], "PRICE_LEVEL_INEXPENSIVE", (10, 20), hours=every_day(11, 0, 3, 0, True))],
     "restaurants": [gp(6, "Noodle Counter", "ramen_restaurant", ["ramen_restaurant", "restaurant"], "PRICE_LEVEL_INEXPENSIVE", hours=DINNER),
                     gp(7, "Prime Cut House", "steak_house", ["steak_house", "restaurant"], "PRICE_LEVEL_VERY_EXPENSIVE", hours=DINNER)],
+    "pubs": [gp(14, "Snug Corner Pub", "pub", ["pub", "bar"], "PRICE_LEVEL_INEXPENSIVE", (10, 20), hours=LATE, servesBeer=True)],
+    "cafes": [gp(15, "Starbucks", "coffee_shop", ["coffee_shop", "cafe"], "PRICE_LEVEL_INEXPENSIVE", hours=DINNER),
+              gp(16, "Little Kettle Cafe", "cafe", ["cafe"], "PRICE_LEVEL_INEXPENSIVE", hours=every_day(8, 0, 23, 0, False))],
     "live": [gp(8, "Back Room Stage Bar", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", hours=LATE, liveMusic=True, servesBeer=True)],
     "late": [],
 }
@@ -141,3 +144,51 @@ def test_google_place_ids_work_for_deals_and_recompute(client):
     c = clean_place({"id": "g:ChIJfake0001", "name": "x", "gmaps": "https://maps.google.com/?cid=1"})
     assert c["id"] == "g:ChIJfake0001" and c["gmaps"]
     assert clean_place({"id": "g:../../etc", "gmaps": "javascript:x"})["id"] == "n0"
+
+
+def _night(google, vibe="chill", **kw):
+    fri = date.today() + timedelta(days=(4 - date.today().weekday()) % 7 + 7)
+    places, _ = G.places_near(*C, 1500, want_live=True, want_late=True)
+    args = dict(people=2, budget_pp=200, vibe=vibe, live=False, late=False)
+    args.update(kw)
+    return planner.build_plan(places, {"lat": C[0], "lon": C[1], "name": "x"}, [fri], args["people"], args["budget_pp"],
+                              args["vibe"], args["live"], args["late"], False, {}, [])["nights"][0]
+
+
+def test_breather_prefers_a_local_cafe_over_a_chain(google):
+    n = _night(google, vibe="chill")
+    breather = next(s for s in n["stops"] if s["slot"] == "breather")
+    assert breather["place"]["name"] != "Starbucks"
+
+
+def test_swap_options_are_shared_out_never_repeated_in_a_night(google):
+    n = _night(google, vibe="dive", late=True)
+    seen = [s["place"]["name"] for s in n["stops"]]
+    for s in n["stops"]:
+        assert len(s["alternatives"]) <= planner.MAX_ALTS
+        seen += [a["place"]["name"] for a in s["alternatives"]]
+    assert len(seen) == len(set(seen))
+
+
+def test_badly_rated_place_is_skipped_when_others_exist(google):
+    for vibe in ("dive", "lively", "chill"):
+        n = _night(google, vibe=vibe)
+        names = [s["place"]["name"] for s in n["stops"]] + [a["place"]["name"] for s in n["stops"] for a in s["alternatives"]]
+        assert "Blue Door Bar" not in names
+
+
+def test_last_round_stays_close_to_where_you_sleep():
+    def bar(i, lat, name):
+        return {"id": f"n{i}", "name": name, "lat": lat, "lon": 0.0, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "happy_hint": None, "website": "", "rating": 4.4, "rating_count": 100, "hours_week": [[[0, 1680]]] * 7,
+                "vibe": {"dive": 0.5, "lively": 0.3, "chill": 0.3}, "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
+    stay = {"lat": 0.0, "lon": 0.0, "name": "home"}
+    ctx = {"free_only": False, "allow_pricey": False, "deals": {}, "used_other_nights": set(), "chains": set(), "stay": stay}
+    night = {"weekday": 4, "used": set()}
+    prev = (0.0081, 0.0)  # main stop, 900 m from home
+    near_main, near_home = bar(1, 0.0090, "Next Door To Main"), bar(2, 0.0012, "Home Corner Bar")
+    last = {"key": "last", "minute": 22 * 60 + 30, "role": "drink"}
+    main = {"key": "dive", "minute": 22 * 60 + 30, "role": "drink"}
+    s = lambda p, slot: planner._score(p, slot, prev, "dive", ctx, night, 3500)[0]
+    assert s(near_home, last) > s(near_main, last)   # the last round pulls toward bed
+    assert s(near_main, main) > s(near_home, main)   # a middle stop does not

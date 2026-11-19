@@ -374,8 +374,9 @@ function swapTo(n, i, j) {
   const st = n.stops[i];
   const alt = st.alternatives[j];
   const rest = st.alternatives.filter((_, k) => k !== j);
-  const old = { ...st }; delete old.alternatives;
+  const old = { ...st }; delete old.alternatives; delete old.tried;
   alt.alternatives = [...rest, old];
+  alt.tried = [...(st.tried || []), st.place.id]; // places already shown for this stop
   n.stops[i] = alt;
 }
 async function recompute(rerender = true) {
@@ -499,10 +500,14 @@ async function doSwap(i) {
   const j = (st.alternatives || []).findIndex(a => !used.has(a.place.id));
   if (j < 0) { toast('No other cheap options nearby for this stop.'); return; }
   const before = JSON.stringify(n.stops);
+  const lapped = (st.tried || []).includes(st.alternatives[j].place.id);
   swapTo(n, i, j);
+  if (lapped) n.stops[i].tried = [];
   S.picks[pickKey(n, n.stops[i].slot)] = n.stops[i].place.id;
   await recompute();
-  toast('Swapped to ' + n.stops[i].place.name, async () => { n.stops = JSON.parse(before); delete S.picks[pickKey(n, n.stops[i].slot)]; await recompute(); });
+  const left = n.stops[i].alternatives.filter(a => !(n.stops[i].tried || []).includes(a.place.id)).length;
+  const note = lapped ? '. That was every option for this stop, so back to the start.' : left ? `. ${left} more to try.` : '. Last new option for this stop.';
+  toast('Swapped to ' + n.stops[i].place.name + note, async () => { n.stops = JSON.parse(before); delete S.picks[pickKey(n, n.stops[i].slot)]; await recompute(); });
 }
 async function widen() { S.radius = Math.min(4000, S.radius + 1000); await buildPlan(); }
 

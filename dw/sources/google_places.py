@@ -47,6 +47,9 @@ NEARBY_SEARCHES = {
         "rankPreference": "POPULARITY",
     },
     "restaurants": {"includedTypes": ["restaurant"], "rankPreference": "POPULARITY"},
+    # more bars to swap between, and real cafes and quiet spots for the breather
+    "pubs": {"includedTypes": ["pub"], "rankPreference": "POPULARITY"},
+    "cafes": {"includedTypes": ["cafe", "coffee_shop"], "rankPreference": "POPULARITY"},
 }
 TEXT_SEARCHES = {"live": "live music bar", "late": "late night food"}
 
