@@ -153,6 +153,11 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
     if place["name"].lower() in ctx.get("chains", ()):
         s -= 0.15 if role == "late" else 0.6
     s -= 0.9 * dist / 1000
+    budget = ctx.get("budget")
+    if budget:
+        over = night.get("spent", 0) + stop_cost(slot["key"], place)[0] - budget
+        if over > 0:
+            s -= 0.04 * over  # $10 past the limit outweighs about 400 m of walking
     if slot["key"] in ("last", "late") and ctx.get("stay"):
         # You walk home after this one anyway, so count that walk too, and a little more, so the
         # last round lands on the way back instead of next to the main stop.
@@ -247,6 +252,7 @@ def build_night(places, stay, day: date, vibe, ctx, used_other_nights) -> dict[s
         stops.append(stop)
         ranked.append((slot, chosen[1:]))
         night["used"].add(best[3]["id"])
+        night["spent"] = night.get("spent", 0) + stop["cost"]
         prev = (best[3]["lat"], best[3]["lon"])
     _share_alternatives(stops, ranked, ctx, vibe)
     return {"date": day.isoformat(), "weekday": day.strftime("%a"), "stops": stops, "missing": missing}
@@ -261,6 +267,7 @@ def build_plan(places, stay, days: list[date], people, budget_pp, vibe, live_mus
         "allow_pricey": False,
         "allow_pricey_fallback": True,
         "chains": chain_names(places),
+        "budget": budget_pp,
         "stay": stay,
     }
     nights, used_all = [], set()

@@ -203,3 +203,19 @@ def test_breather_is_close_or_skipped():
     n = planner.build_plan(ps, {"lat": 0.0, "lon": 0.0, "name": "h"}, [sat], 2, 200, "chill", False, False, False, {}, [])["nights"][0]
     assert all(s["place"]["name"] != "Far Away Cafe" for s in n["stops"])
     assert any(s["slot"] == "last" for s in n["stops"])  # a plain bar counts as a quiet last round
+
+
+def test_main_stop_picks_the_cheaper_bar_when_the_close_one_breaks_the_budget():
+    from dw import planner
+    def bar(i, lat, name, mid):
+        return {"id": f"n{i}", "name": name, "lat": lat, "lon": 0.0, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "happy_hint": None, "website": "", "rating": 4.4, "rating_count": 100, "hours_week": [[[0, 1680]]] * 7,
+                "vibe": {"dive": 0.5, "lively": 0.3, "chill": 0.3}, "price": {"tier": "ok" if mid > 20 else "cheap", "mid": mid, "low": mid - 5, "high": mid + 5}}
+    ctx = {"free_only": False, "allow_pricey": False, "deals": {}, "used_other_nights": set(), "chains": set(), "budget": 50}
+    night = {"weekday": 4, "used": set(), "spent": 40}
+    main = {"key": "dive", "minute": 21 * 60, "role": "drink"}
+    close_dear, near_cheap = bar(1, 0.0001, "Close But Dear", 25), bar(2, 0.004, "Few Blocks Cheaper", 12)
+    s = lambda p: planner._score(p, main, (0.0, 0.0), "dive", ctx, night, 3500)[0]
+    assert s(near_cheap) > s(close_dear)
+    ctx["budget"] = 200  # plenty of room: the close one is fine
+    assert s(close_dear) > s(near_cheap) - 0.5
