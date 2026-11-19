@@ -23,6 +23,12 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 TICKETMASTER_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 TICKETMASTER_KEY = os.environ.get("TICKETMASTER_KEY", "")
 
+# Optional: Google Places (New). Real price levels, hours, live music flags and ratings.
+GOOGLE_PLACES_KEY = os.environ.get("GOOGLE_PLACES_KEY", "")
+# Calls a day across all visitors. A plan costs 4 to 6 calls, fewer when cached.
+GOOGLE_DAILY_LIMIT = int(os.environ.get("DW_GOOGLE_DAILY_LIMIT", "30"))
+GOOGLE_CACHE_HOURS = 12
+
 DEFAULT_RADIUS_M = 1500
 MAX_RADIUS_M = 4000
 MAX_NIGHTS = 4

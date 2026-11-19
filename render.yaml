@@ -11,3 +11,7 @@ services:
         value: "80"
       - key: TICKETMASTER_KEY
         sync: false
+      - key: GOOGLE_PLACES_KEY
+        sync: false
+      - key: DW_GOOGLE_DAILY_LIMIT
+        value: "30"

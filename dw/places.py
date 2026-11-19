@@ -9,7 +9,7 @@ import re
 from typing import Any
 
 from . import geo
-from .hours import parse as parse_hours
+from .hours import Hours, parse as parse_hours
 
 DRINK_AMENITIES = {"bar", "pub", "biergarten"}
 FOOD_AMENITIES = {"restaurant", "fast_food", "food_court", "cafe"}
@@ -188,7 +188,8 @@ def from_elements(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def open_state(place: dict[str, Any], day: int, minute: int, span: int = 60) -> bool | None:
     """True if open at the start and still open `span` minutes later. None if hours unknown."""
-    h = parse_hours(place.get("hours_raw"))
+    week = place.get("hours_week")
+    h = Hours([[tuple(r) for r in day] for day in week]) if week else parse_hours(place.get("hours_raw"))
     if not h.known:
         return None
     a = h.is_open(day, minute)

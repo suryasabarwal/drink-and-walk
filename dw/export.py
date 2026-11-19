@@ -11,6 +11,8 @@ from typing import Any
 
 
 def maps_link(p: dict[str, Any]) -> str:
+    if p.get("gmaps"):
+        return p["gmaps"]
     return f"https://www.google.com/maps/search/?api=1&query={p['lat']:.5f},{p['lon']:.5f}"
 
 

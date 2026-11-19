@@ -30,7 +30,8 @@ Everything runs on free data. No accounts, no database, no API key required.
 | Need | Source | Cost |
 | --- | --- | --- |
 | City search | Open-Meteo geocoding | Free, no key |
-| Bars, pubs, food, hours | OpenStreetMap via Overpass API | Free, no key |
+| Bars, pubs, food, hours | Google Places API (New), when a key is set | Free monthly allowance, then paid |
+| Bars, pubs, food, hours (fallback) | OpenStreetMap via Overpass API | Free, no key |
 | Hotel or address search | Nominatim (OpenStreetMap) | Free, 1 request a second |
 | Weather | Open-Meteo forecast (about 16 days) | Free, no key |
 | Concerts and festivals | Ticketmaster Discovery | Free key, optional |
@@ -56,6 +57,10 @@ python -m pytest -q            # tests, no internet needed
 
 Optional environment variables:
 
+- `GOOGLE_PLACES_KEY` switches places to Google Places API (New): real price levels and spend
+  ranges, real opening hours, live music flags and ratings. Without it the app uses OpenStreetMap,
+  and it falls back to OpenStreetMap whenever Google fails. `DW_GOOGLE_DAILY_LIMIT` (default 30)
+  caps calls a day; also set a matching daily quota in Google Cloud so nothing can run up a bill.
 - `TICKETMASTER_KEY` turns on the "Also on tonight" list (free key at developer.ticketmaster.com).
 - `DW_CONTACT` is the URL put in the User-Agent. Set it to your own repo or site.
 - `DW_OVERPASS_DAILY_LIMIT` caps live map queries per day.

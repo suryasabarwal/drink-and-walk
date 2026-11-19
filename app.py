@@ -10,7 +10,7 @@ from functools import wraps
 from flask import Flask, Response, jsonify, render_template, request
 
 from dw import config, deals as deal_board, export, notes, planner, voice
-from dw.sources import SourceDown, geocode, overpass, ticketmaster, weather
+from dw.sources import SourceDown, geocode, google_places, overpass, ticketmaster, weather
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 200_000
@@ -127,6 +127,18 @@ def _parse_plan_request(j: dict):
     }
 
 
+def get_places(lat: float, lon: float, radius: int, want_live: bool = False, want_late: bool = False):
+    """Google Places when a key is set (best data), else OpenStreetMap. Falls back to the open map
+    if Google fails, and says so in meta."""
+    if google_places.enabled():
+        try:
+            return google_places.places_near(lat, lon, radius, want_live, want_late)
+        except SourceDown as exc:
+            places, meta = overpass.elements_near(lat, lon, radius)
+            return places, {**meta, "fallback_from": str(exc)}
+    return overpass.elements_near(lat, lon, radius)
+
+
 def _attach_text(plan):
     plan["text"] = export.to_text(plan)
     return plan
@@ -136,7 +148,7 @@ def _attach_text(plan):
 @limited("plan", 10)
 def make_plan():
     r = _parse_plan_request(request.get_json(silent=True) or {})
-    places, meta = overpass.elements_near(r["stay"]["lat"], r["stay"]["lon"], r["radius"])
+    places, meta = get_places(r["stay"]["lat"], r["stay"]["lon"], r["radius"], r["live"], r["late"])
     deals = deal_board.for_places({p["id"] for p in places})
     wx = weather.forecast(r["stay"]["lat"], r["stay"]["lon"], r["days"][0], r["days"][-1])
     events = ticketmaster.events(r["stay"]["lat"], r["stay"]["lon"], r["days"][0], r["days"][-1])
@@ -147,6 +159,7 @@ def make_plan():
     plan["country"] = r["city"]["country"]
     plan["radius"] = r["radius"]
     plan["source"] = meta
+    plan["google"] = meta.get("source") == "google"
     plan["banners"] = notes.banners(r["days"], r["city"]["country"], wx)
     plan["safety"] = voice.UI["safety"] if r["city"]["country"] == "US" else voice.UI["safety"][:3]
     plan["events_enabled"] = ticketmaster.enabled()
@@ -182,9 +195,9 @@ def nearby():
     mode = request.args.get("mode", "drink")
     if mode not in ("drink", "eat", "music", "free", "late"):
         raise ValueError("unknown mode")
-    places, meta = overpass.elements_near(lat, lon, 1200)
+    places, meta = get_places(lat, lon, 1200, mode == "music", mode == "late")
     deals = deal_board.for_places({p["id"] for p in places})
-    return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places))
+    return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places), google=meta.get("source") == "google")
 
 
 @app.post("/api/deals")

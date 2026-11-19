@@ -75,6 +75,16 @@ def _role_ok(place: dict[str, Any], role: str, vibe: str, free_only: bool) -> bo
     return False
 
 
+def rating_bonus(place: dict[str, Any]) -> float:
+    """Cheap is the point, but not a place people hate. Only counts with enough reviews."""
+    r, n = place.get("rating"), place.get("rating_count") or 0
+    if r is None or n < 15:
+        return 0.0
+    if r < 3.5:
+        return -0.6
+    return max(-0.2, min(0.3, (r - 4.0) * 0.35))
+
+
 def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | None, float] | None:
     role = slot["role"]
     if not _role_ok(place, role, vibe, ctx["free_only"]):
@@ -106,6 +116,7 @@ def _score(place, slot, prev, vibe, ctx, night, max_leg) -> tuple[float, bool | 
         s -= 0.2
     if place.get("website"):
         s += 0.03
+    s += rating_bonus(place)
     if pid in ctx["used_other_nights"]:
         s -= 1.0
     s -= 0.9 * dist / 1000
@@ -293,7 +304,7 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
             continue
         if mode == "late" and not _late_confirmed(p, day, minute):
             continue
-        score = TIER_BONUS[p["price"]["tier"]] - 1.2 * dist / 1000 + (0.6 if deals.get(p["id"]) else 0) - (0.2 if state is None else 0)
+        score = TIER_BONUS[p["price"]["tier"]] + rating_bonus(p) - 1.2 * dist / 1000 + (0.6 if deals.get(p["id"]) else 0) - (0.2 if state is None else 0)
         out.append((score, p, dist, state))
     out.sort(key=lambda t: -t[0])
     return [
@@ -310,7 +321,7 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
 
 # ---- cleaning posted data -------------------------------------------------
 
-_ID = re.compile(r"^[nwr]\d{1,12}$")
+_ID = re.compile(r"^([nwr]\d{1,12}|g:[A-Za-z0-9_-]{6,200})$")
 
 
 def _s(v: Any, n: int) -> str:
@@ -328,6 +339,7 @@ def _num(v: Any, lo: float, hi: float, default: float = 0) -> float:
 def clean_place(p: dict[str, Any]) -> dict[str, Any]:
     price = p.get("price") or {}
     site = _s(p.get("website"), 200)
+    gm = _s(p.get("gmaps"), 300)
     return {
         "id": p.get("id") if _ID.match(str(p.get("id", ""))) else "n0",
         "name": _s(p.get("name"), 80) or "Stop",
@@ -336,6 +348,7 @@ def clean_place(p: dict[str, Any]) -> dict[str, Any]:
         "amenity": _s(p.get("amenity"), 20),
         "address": _s(p.get("address"), 80),
         "website": site if site.startswith(("http://", "https://")) else "",
+        "gmaps": gm if gm.startswith(("https://maps.google.com/", "https://www.google.com/maps")) else "",
         "live_music": bool(p.get("live_music")),
         "price": {
             "low": int(_num(price.get("low"), 0, 500)),

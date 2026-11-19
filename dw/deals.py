@@ -61,7 +61,7 @@ def clean(text: Any, lo: int, hi: int, field: str) -> str:
 
 
 def add(place_id: str, place_name: str, text: str, when: str) -> dict[str, Any]:
-    if not re.fullmatch(r"[nwr]\d{1,12}", str(place_id or "")):
+    if not re.fullmatch(r"[nwr]\d{1,12}|g:[A-Za-z0-9_-]{6,200}", str(place_id or "")):
         raise DealError("pick a place from the plan first")
     deal = {
         "id": secrets.token_hex(5),

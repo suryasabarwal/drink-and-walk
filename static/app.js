@@ -124,8 +124,9 @@ VIEWS.home = app => {
   );
 };
 
-function credits() {
+function credits(google) {
   return h('p', { class: 'credits' },
+    google ? 'Places, prices and hours from Google Maps. ' : '',
     'Map data from ',
     h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, 'OpenStreetMap contributors'),
     '. Weather from ',
@@ -384,7 +385,7 @@ async function recompute(rerender = true) {
 function costOf(n, s) { return s.slot === 'last' ? Math.round(s.place.price.mid * 0.5) : s.place.price.mid; }
 
 /* ---------- plan view ---------- */
-const mapsUrl = (p, city) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.name + ' ' + (p.address || '') + ' ' + city);
+const mapsUrl = (p, city) => p.gmaps || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.name + ' ' + (p.address || '') + ' ' + city);
 const redditUrl = (p, city) => 'https://www.reddit.com/search/?q=' + encodeURIComponent(`${p.name} ${city} happy hour`);
 const money0 = n => '$' + Math.round(n);
 
@@ -392,6 +393,7 @@ function placeTags(p, state, openLabel = 'Open then') {
   const t = [];
   if (state === true) t.push(h('span', { class: 'tag good' }, openLabel));
   else if (state === null || state === undefined) t.push(h('span', { class: 'tag' }, 'Hours unconfirmed'));
+  if (p.rating != null && p.rating_count >= 15) t.push(h('span', { class: 'tag' }, `${p.rating.toFixed(1)} stars, ${p.rating_count} reviews`));
   if (p.happy_hint) t.push(h('span', { class: 'tag accent' }, 'Happy hour listed'));
   if (p.live_music) t.push(h('span', { class: 'tag' }, 'Live music'));
   if (p.outdoor_seating) t.push(h('span', { class: 'tag' }, 'Patio'));
@@ -478,7 +480,7 @@ VIEWS.plan = (app, bar) => {
       h('p', { class: 'help' }, 'Looking for festivals and shows? ', h('a', { href: 'https://www.google.com/search?q=' + encodeURIComponent(`events in ${city} ${fmtDay(dateObj)}`), target: '_blank', rel: 'noopener' }, 'Search events that night'), '. ', h('a', { href: 'https://www.reddit.com/search/?q=' + encodeURIComponent(`${city} happy hour deals`), target: '_blank', rel: 'noopener' }, 'Reddit happy hour threads'), '.'),
     h('div', { class: 'notice' }, h('h5', {}, 'Before you head out'), h('ul', {}, ...P.safety.map(x => h('li', {}, x)))),
     h('div', { style: 'margin-top:14px' }, h('button', { class: 'btn small line', onclick: () => go('city') }, 'Change city, dates or start')),
-    credits());
+    credits(P.google));
 
   setBar(bar, { label: 'Copy plan', ok: true, onclick: copyPlan, extra: h('div', { class: 'row', style: 'flex:none' },
     h('button', { class: 'btn ghost', onclick: downloadIcs }, 'Calendar'),
@@ -551,7 +553,7 @@ async function loadNearby(at, note) {
   try {
     const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode });
     const j = await api('/api/nearby?' + q);
-    S.near.results = j.results; S.near.known = j.total_known;
+    S.near.results = j.results; S.near.known = j.total_known; S.near.google = j.google;
   } catch (e) { S.near.err = e.message; }
   if (S.step === 'nearby') render();
 }
@@ -579,7 +581,7 @@ VIEWS.nearby = app => {
           h('button', { class: 'btn small line', onclick: () => addDealSheet(p, d => { r.deals = [...(r.deals || []), d]; render(); }) }, 'Add a deal')));
     })));
   }
-  put(app, credits());
+  put(app, credits(S.near.google));
 };
 
 /* ---------- boot ---------- */
