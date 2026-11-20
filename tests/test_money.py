@@ -33,7 +33,7 @@ def test_from_dict_only_accepts_known_currencies():
 
 def g(i, name, primary, types, rng=None, level="PRICE_LEVEL_INEXPENSIVE", cur="EUR"):
     d = {"id": f"ChIJmoney{i:03d}", "displayName": {"text": name}, "primaryType": primary, "types": types, "priceLevel": level,
-         "location": {"latitude": 38.71, "longitude": -9.14}, "businessStatus": "OPERATIONAL"}
+         "location": {"latitude": 38.71, "longitude": -9.14}, "businessStatus": "OPERATIONAL", "userRatingCount": 50}
     if rng:
         d["priceRange"] = {"startPrice": {"currencyCode": cur, "units": str(rng[0])}, "endPrice": {"currencyCode": cur, "units": str(rng[1])}}
     return d
