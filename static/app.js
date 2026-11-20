@@ -48,7 +48,7 @@ const S = {
   step: 'home', flow: 'plan', city: null, start: '', end: '', people: 4, budget: 50,
   stay: null, vibe: 'dive', live: false, late: false, free: false, radius: 1500,
   plan: null, night: 0, anchors: null, anchorErr: '', locResults: null, picks: {},
-  near: { mode: 'drink', results: null, at: null, note: '', err: '' },
+  near: { mode: 'drink', results: null, at: null, where: '', err: '', country: null, cityName: '', locFailed: false },
 };
 
 /* ---------- navigation ---------- */
@@ -62,7 +62,8 @@ window.addEventListener('popstate', e => { S.step = (e.state && e.state.step) ||
 function backStep() {
   const i = FLOW.indexOf(S.step);
   if (S.step === 'loading' || S.step === 'plan' || S.step === 'error') return 'vibe';
-  if (S.step === 'nearby' || S.step === 'nearcity') return 'home';
+  if (S.step === 'nearcity') return S.near.at ? 'nearby' : 'home';
+  if (S.step === 'nearby') return 'home';
   return i <= 0 ? 'home' : FLOW[i - 1];
 }
 
@@ -145,13 +146,40 @@ function credits(google) {
 
 /* --- step 1: city --- */
 VIEWS.city = (app, bar) => cityView(app, bar, 'Where are you headed?', 'Start typing a city. Pick it from the list.', () => go('dates'), 'Next');
-VIEWS.nearcity = (app, bar) => cityView(app, bar, 'Which city are you in?', 'We could not get your location, so pick your city and we will search from the center.', () => loadNearby({ lat: S.city.lat, lon: S.city.lon }, 'Searching from the center of ' + S.city.name + '.'), 'Show cheap spots');
+VIEWS.nearcity = (app, bar) => cityView(app, bar, 'Where are you?',
+  S.near.locFailed ? 'We could not get your location. Pick the city, then a street or hotel if you like.' : 'Pick the city, then a street, hotel or bar near you if you like.',
+  () => { S.near.country = S.city.country; S.near.cityName = S.city.name; loadNearby({ lat: S.city.lat, lon: S.city.lon }, 'the center of ' + S.city.name); },
+  'Search from the city center', nearPlaceSearch);
 
-function cityView(app, bar, title, lead, next, label) {
+// optional: a street, hotel or bar inside the picked city, so results start from the right corner
+function nearPlaceSearch(box) {
+  const q = h('input', { type: 'search', placeholder: 'Street, hotel or bar name', 'aria-label': 'Street, hotel or bar name', autocomplete: 'off' });
+  const note = h('p', { class: 'help', 'aria-live': 'polite' });
+  const found = h('ul', { class: 'list', hidden: true });
+  const search = async () => {
+    const text = q.value.trim();
+    if (text.length < 3) { note.textContent = 'Type at least 3 letters.'; return; }
+    note.textContent = 'Searching...';
+    try {
+      const j = await api(`/api/locate?q=${encodeURIComponent(text)}&lat=${S.city.lat}&lon=${S.city.lon}`);
+      found.replaceChildren(...j.results.map(r => h('li', { role: 'presentation' }, h('button', { onclick: () => {
+        S.near.country = S.city.country; S.near.cityName = S.city.name; loadNearby({ lat: r.lat, lon: r.lon }, shortAddress(r.label));
+      } }, r.label))));
+      found.hidden = !j.results.length;
+      note.textContent = j.results.length ? '' : 'Nothing found in ' + S.city.name + '. Try a street name, or search from the center.';
+    } catch (e) { note.textContent = e.message; }
+  };
+  q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+  put(box, h('h3', {}, 'Near a street, hotel or bar (optional)'),
+    h('div', { class: 'row' }, q, h('button', { class: 'btn ghost', style: 'flex:none', onclick: search }, 'Search')), note, found);
+}
+
+function cityView(app, bar, title, lead, next, label, extra) {
   let timer, results = [], active = -1;
   const status = h('p', { class: 'help', 'aria-live': 'polite' }, '');
   const list = h('ul', { class: 'list', role: 'listbox', id: 'citylist', hidden: true });
   const picked = h('div', {});
+  const more = h('div', {});
   const input = h('input', { type: 'search', id: 'city', autocomplete: 'off', 'aria-autocomplete': 'list', 'aria-controls': 'citylist', placeholder: 'Austin, Lisbon, Osaka...', value: S.city ? S.city.label : '' });
   const paint = () => {
     list.replaceChildren(...results.map((c, i) => h('li', { role: 'presentation' },
@@ -162,7 +190,10 @@ function cityView(app, bar, title, lead, next, label) {
     S.city = c; S.budget = (c.budget || DEFAULT_BUDGET).default; S.stay = null; S.anchors = null; S.locResults = null; S.picks = {};
     input.value = c.label; results = []; paint(); status.textContent = ''; showPicked(); refreshBar();
   };
-  const showPicked = () => picked.replaceChildren(S.city ? h('p', { class: 'good-line' }, '✓ ', S.city.label) : '');
+  const showPicked = () => {
+    picked.replaceChildren(S.city ? h('p', { class: 'good-line' }, '✓ ', S.city.label) : '');
+    more.replaceChildren(); if (extra && S.city) extra(more);
+  };
   input.addEventListener('input', () => {
     S.city = null; showPicked(); refreshBar();
     clearTimeout(timer);
@@ -184,7 +215,7 @@ function cityView(app, bar, title, lead, next, label) {
     else if (e.key === 'Enter' && active >= 0) { choose(results[active]); e.preventDefault(); }
   });
   put(app, h('h2', {}, title), h('p', { class: 'lead' }, lead),
-    h('label', { class: 'field' }, h('span', { class: 'sr' }, 'City'), input), status, list, picked);
+    h('label', { class: 'field' }, h('span', { class: 'sr' }, 'City'), input), status, list, picked, more);
   showPicked();
   function refreshBar() {
     bar.replaceChildren();
@@ -560,19 +591,24 @@ function restoreFromHash() {
 
 /* ---------- "I'm out right now" ---------- */
 function startNearby() {
-  S.flow = 'nearby'; S.step = 'nearby'; history.pushState({ step: 'nearby' }, ''); S.near.results = null; S.near.err = ''; S.near.note = 'Finding you...'; render();
-  if (!navigator.geolocation) { go('nearcity'); return; }
-  navigator.geolocation.getCurrentPosition(
-    p => loadNearby({ lat: p.coords.latitude, lon: p.coords.longitude }, 'Searching around you.'),
-    () => go('nearcity'), { timeout: 10000, maximumAge: 60000 });
+  S.flow = 'nearby'; S.step = 'nearby'; history.pushState({ step: 'nearby' }, '');
+  useMyLocation();
 }
-async function loadNearby(at, note) {
+function useMyLocation() {
+  S.near.results = null; S.near.err = ''; S.near.where = 'Finding you...'; S.step = 'nearby'; render();
+  const failed = () => { S.near.locFailed = true; go('nearcity'); };
+  if (!navigator.geolocation) { failed(); return; }
+  navigator.geolocation.getCurrentPosition(
+    p => { S.near.locFailed = false; S.near.country = null; S.near.cityName = ''; loadNearby({ lat: p.coords.latitude, lon: p.coords.longitude }, 'your location'); },
+    failed, { timeout: 10000, maximumAge: 60000 });
+}
+async function loadNearby(at, where) {
   if (at) S.near.at = at;
-  if (note) S.near.note = note;
+  if (where) S.near.where = where;
   S.step = 'nearby'; S.near.results = null; S.near.err = ''; render();
   const now = new Date();
   try {
-    const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode, ...(S.city ? { country: S.city.country } : {}) });
+    const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode, ...(S.near.country ? { country: S.near.country } : {}) });
     const j = await api('/api/nearby?' + q);
     S.near.results = j.results; S.near.known = j.total_known; S.near.google = j.google; S.near.currency = (j.meta && j.meta.currency) || USD;
   } catch (e) { S.near.err = e.message; }
@@ -580,8 +616,12 @@ async function loadNearby(at, note) {
 }
 VIEWS.nearby = app => {
   const modes = [['drink', 'Cheap drinks'], ['eat', 'Cheap food'], ['music', 'Live music'], ['free', 'Free-ish'], ['late', 'Late food']];
-  const city = S.city ? S.city.name : '';
-  put(app, h('h2', {}, 'Cheap and open near you'), h('p', { class: 'lead' }, S.near.note || ''),
+  const city = S.near.cityName; // never an older plan's city
+  put(app, h('h2', {}, 'Cheap and open near you'),
+    h('div', { class: 'row', style: 'align-items:center;flex-wrap:wrap;gap:8px' },
+      h('p', { class: 'lead', style: 'margin:0;flex:1 1 auto' }, S.near.where === 'Finding you...' ? S.near.where : 'Near: ' + (S.near.where || 'you')),
+      h('button', { class: 'btn small line', style: 'flex:none', onclick: useMyLocation }, 'Use my location'),
+      h('button', { class: 'btn small line', style: 'flex:none', onclick: () => go('nearcity') }, 'Change place')),
     h('div', { class: 'chips', role: 'group', 'aria-label': 'What are you after' }, ...modes.map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': String(S.near.mode === k), onclick: () => { S.near.mode = k; loadNearby(); } }, t))));
   if (S.near.err) { put(app, h('p', { class: 'err', role: 'alert' }, S.near.err), h('button', { class: 'btn ghost', onclick: () => loadNearby() }, 'Try again')); }
   else if (!S.near.results) { put(app, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); }
