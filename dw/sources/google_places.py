@@ -155,7 +155,9 @@ def normalize(g: dict[str, Any], cur: money.Currency = money.USD) -> dict[str, A
     types = set(g.get("types") or [])
     primary = g.get("primaryType") or ""
     if primary in LODGING_TYPES:
-        return None  # a hotel turns up in bar searches, and hotel bars are not a cheap night
+        return None
+    if not g.get("regularOpeningHours") and (g.get("userRatingCount") or 0) < 5:
+        return None  # no hours and almost no reviews: a person's name, a club in another state, a ghost  # a hotel turns up in bar searches, and hotel bars are not a cheap night
     amenity = _amenity(types, primary)
     cuisine = next((CUISINE_FROM_TYPE[t] for t in [primary, *types] if t in CUISINE_FROM_TYPE), "")
     live = bool(g.get("liveMusic"))

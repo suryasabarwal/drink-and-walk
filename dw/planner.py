@@ -8,6 +8,7 @@ runners-up are kept as swap options.
 from __future__ import annotations
 
 import re
+import zlib
 from datetime import date
 from typing import Any
 
@@ -385,6 +386,9 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
         score = TIER_BONUS[p["price"]["tier"]] + rating_bonus(p) - 1.2 * dist / 1000 + (0.6 if deals.get(p["id"]) else 0) - (0.2 if state is None else 0)
         out.append((score, p, dist, state))
     out.sort(key=lambda t: -t[0])
+    # quips rotate down the list, so neighbors never say the same thing
+    bank = voice.LINES["near_" + mode]
+    start = zlib.crc32(out[0][1]["id"].encode()) % len(bank) if out else 0
     return [
         {
             "place": p,
@@ -392,9 +396,9 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
             "open": state,
             "walk": {"min": geo.walk_minutes(dist), "label": geo.walk_km_label(dist), "m": round(dist)},
             "deals": deals.get(p["id"], []),
-            "line": voice.pick("near_" + mode, p["id"]),
+            "line": bank[(start + k) % len(bank)],
         }
-        for _, p, dist, state in out[:limit]
+        for k, (_, p, dist, state) in enumerate(out[:limit])
     ]
 
 

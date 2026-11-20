@@ -194,3 +194,9 @@ def test_last_round_stays_close_to_where_you_sleep():
     s = lambda p, slot: planner._score(p, slot, prev, "dive", ctx, night, 3500)[0]
     assert s(near_home, last) > s(near_main, last)   # the last round pulls toward bed
     assert s(near_main, main) > s(near_home, main)   # a middle stop does not
+
+
+def test_ghost_listings_with_no_hours_and_no_reviews_are_dropped():
+    ghost = gp(90, "Somebody's Name", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", userRatingCount=1)
+    real_new = gp(91, "Brand New Taps", "bar", ["bar"], "PRICE_LEVEL_INEXPENSIVE", hours=LATE, userRatingCount=2)
+    assert G.normalize(ghost) is None and G.normalize(real_new) is not None

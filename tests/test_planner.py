@@ -229,3 +229,12 @@ def test_out_right_now_leaves_out_badly_rated_places():
                 "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
     got = [r["place"]["id"] for r in planner.nearby([bar(1, 4.5), bar(2, 3.1)], 0.0, 0.0, 4, 21 * 60, "drink", {})]
     assert got == ["n1"]
+
+
+def test_out_right_now_quips_rotate():
+    from dw import planner
+    def bar(i):
+        return {"id": f"n{i}", "name": f"Bar {i}", "lat": 0.0, "lon": 0.0001 * i, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "hours_week": [[[0, 1680]]] * 7, "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
+    lines = [r["line"] for r in planner.nearby([bar(i) for i in range(4)], 0.0, 0.0, 4, 21 * 60, "drink", {})]
+    assert len(set(lines)) == 4
