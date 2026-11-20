@@ -32,6 +32,13 @@ const fromIso = s => { const [y, m, d] = s.split('-').map(Number); return new Da
 const fmtDay = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const nights = () => S.start && S.end ? Math.round((fromIso(S.end) - fromIso(S.start)) / 864e5) + 1 : 0;
+/* money: the server plans in internal units; these turn them into local money (see dw/money.py) */
+const USD = { code: 'USD', symbol: '$', level: 1, suffix: false };
+const DEFAULT_BUDGET = { min: 20, max: 150, step: 5, default: 50, chips: [30, 50, 75, 100] };
+const moneyStep = c => c.level < 8 ? 1 : c.level < 80 ? 10 : c.level < 800 ? 100 : 1000;
+const fmtLocal = (v, c = USD) => { const n = Math.round(v).toLocaleString('en-US'); return c.suffix ? `${n} ${c.symbol}` : c.symbol + n; };
+const fmtMoney = (n, c = USD) => { const st = moneyStep(c); return fmtLocal(Math.round(n * c.level / st) * st, c); };
+const cityCur = () => (S.city && S.city.currency) || USD;
 const put = (el, ...kids) => el.append(...kids.flat().filter(k => k != null && k !== false));
 const say = t => { $('#live').textContent = ''; setTimeout(() => { $('#live').textContent = t; }, 30); };
 
@@ -150,7 +157,7 @@ function cityView(app, bar, title, lead, next, label) {
     list.hidden = !results.length;
   };
   const choose = c => {
-    S.city = c; S.stay = null; S.anchors = null; S.locResults = null; S.picks = {};
+    S.city = c; S.budget = (c.budget || DEFAULT_BUDGET).default; S.stay = null; S.anchors = null; S.locResults = null; S.picks = {};
     input.value = c.label; results = []; paint(); status.textContent = ''; showPicked(); refreshBar();
   };
   const showPicked = () => picked.replaceChildren(S.city ? h('p', { class: 'good-line' }, '✓ ', S.city.label) : '');
@@ -230,19 +237,20 @@ VIEWS.dates = (app, bar) => {
 /* --- step 3: group and budget --- */
 VIEWS.group = (app, bar) => {
   const count = h('output', { 'aria-live': 'polite' }, String(S.people));
-  const money = h('div', { class: 'money', 'aria-live': 'polite' }, '$' + S.budget);
+  const cur = cityCur(); const B = (S.city && S.city.budget) || DEFAULT_BUDGET;
+  const money = h('div', { class: 'money', 'aria-live': 'polite' }, fmtLocal(S.budget, cur));
   const dec = h('button', { 'aria-label': 'One fewer person', onclick: () => bump(-1) }, '−');
   const inc = h('button', { 'aria-label': 'One more person', onclick: () => bump(1) }, '+');
   const bump = d => { S.people = Math.max(1, Math.min(20, S.people + d)); count.textContent = S.people; };
-  const slider = h('input', { type: 'range', min: 20, max: 150, step: 5, value: S.budget, 'aria-label': 'Budget per person per night' });
-  slider.addEventListener('input', () => { S.budget = +slider.value; money.textContent = '$' + S.budget; });
+  const slider = h('input', { type: 'range', min: B.min, max: B.max, step: B.step, value: S.budget, 'aria-label': 'Budget per person per night' });
+  slider.addEventListener('input', () => { S.budget = +slider.value; money.textContent = fmtLocal(S.budget, cur); });
   put(app, h('h2', {}, 'How many of you?'),
     h('div', { class: 'stepper' }, dec, count, inc),
     h('p', { class: 'help', style: 'text-align:center' }, 'Including you.'),
     h('h3', {}, 'Your limit per person, per night'),
     money, slider,
-    h('div', { class: 'chips', style: 'justify-content:center' }, ...[30, 50, 75, 100].map(v =>
-      h('button', { class: 'chip', onclick: () => { S.budget = v; slider.value = v; money.textContent = '$' + v; } }, '$' + v))),
+    h('div', { class: 'chips', style: 'justify-content:center' }, ...B.chips.map(v =>
+      h('button', { class: 'chip', onclick: () => { S.budget = v; slider.value = v; money.textContent = fmtLocal(v, cur); } }, fmtLocal(v, cur)))),
     h('p', { class: 'help' }, 'This covers food and drinks, not the ride home. If a plan runs over, we drop the last round first and tell you.'));
   setBar(bar, { label: 'Next', onclick: () => go('start'), ok: true });
 };
@@ -394,7 +402,7 @@ function costOf(n, s) { return s.slot === 'last' ? Math.round(s.place.price.mid 
 /* ---------- plan view ---------- */
 const mapsUrl = (p, city) => p.gmaps || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.name + ' ' + (p.address || '') + ' ' + city);
 const redditUrl = (p, city) => 'https://www.reddit.com/search/?q=' + encodeURIComponent(`${p.name} ${city} happy hour`);
-const money0 = n => '$' + Math.round(n);
+const money0 = n => fmtMoney(n, (S.plan && S.plan.currency) || cityCur());
 
 function placeTags(p, state, openLabel = 'Open then') {
   const t = [];
@@ -562,9 +570,9 @@ async function loadNearby(at, note) {
   S.step = 'nearby'; S.near.results = null; S.near.err = ''; render();
   const now = new Date();
   try {
-    const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode });
+    const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode, ...(S.city ? { country: S.city.country } : {}) });
     const j = await api('/api/nearby?' + q);
-    S.near.results = j.results; S.near.known = j.total_known; S.near.google = j.google;
+    S.near.results = j.results; S.near.known = j.total_known; S.near.google = j.google; S.near.currency = (j.meta && j.meta.currency) || USD;
   } catch (e) { S.near.err = e.message; }
   if (S.step === 'nearby') render();
 }
@@ -581,7 +589,7 @@ VIEWS.nearby = app => {
     put(app, h('div', { style: 'margin-top:14px' }, ...S.near.results.map(r => {
       const p = r.place;
       return h('div', { class: 'card', style: 'margin-bottom:12px' },
-        h('div', { class: 'meta' }, h('span', { class: 'tag accent' }, r.walk.min <= 1 ? 'Right here' : r.walk.min + ' min walk'), h('span', { class: 'tag' }, '~' + money0(r.cost) + ' each (est.)'), placeTags(p, r.open, 'Open now')),
+        h('div', { class: 'meta' }, h('span', { class: 'tag accent' }, r.walk.min <= 1 ? 'Right here' : r.walk.min + ' min walk'), h('span', { class: 'tag' }, '~' + fmtMoney(r.cost, S.near.currency || USD) + ' each (est.)'), placeTags(p, r.open, 'Open now')),
         h('h4', { style: 'margin:4px 0;font-size:19px' }, p.name),
         p.address ? h('div', { class: 'help' }, p.address) : null,
         p.happy_hint ? h('div', { class: 'help' }, 'Map says: ' + p.happy_hint) : null,

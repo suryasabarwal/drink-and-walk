@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .. import config
+from .. import config, money
 from . import SourceDown
 from .http import session, throttle
 
@@ -24,6 +24,7 @@ def search_cities(query: str, count: int = 6) -> list[dict[str, Any]]:
         raise SourceDown(f"city search: {type(exc).__name__}") from exc
     out = []
     for c in results:
+        cur = money.for_country(c.get("country_code")) or money.USD
         label = ", ".join(x for x in (c.get("name"), c.get("admin1"), c.get("country_code")) if x)
         out.append(
             {
@@ -34,6 +35,8 @@ def search_cities(query: str, count: int = 6) -> list[dict[str, Any]]:
                 "country": c.get("country_code", ""),
                 "timezone": c.get("timezone", ""),
                 "population": c.get("population", 0),
+                "currency": cur.as_dict(),
+                "budget": money.budget_choices(cur),
             }
         )
     return out

@@ -37,6 +37,7 @@ def places(elements):
 def client(monkeypatch, elements):
     """Flask client with every outside source replaced by fixtures. Nothing touches the network."""
     import app as appmod
+    from dw import money
     from dw.sources import overpass, geocode, weather, ticketmaster
 
     monkeypatch.setattr(overpass, "fetch_elements", lambda lat, lon, r: (elements, {"source": "fixture"}))
@@ -44,7 +45,7 @@ def client(monkeypatch, elements):
     monkeypatch.setattr(overpass, "_run", lambda path, q: (anchors, {"source": "fixture"}))
     monkeypatch.setattr(weather, "forecast", lambda *a, **k: {})
     monkeypatch.setattr(ticketmaster, "events", lambda *a, **k: [])
-    monkeypatch.setattr(geocode, "search_cities", lambda q, count=6: [{"label": "Testville, NY, US", "name": "Testville", "lat": CENTER[0], "lon": CENTER[1], "country": "US", "timezone": "", "population": 1}])
+    monkeypatch.setattr(geocode, "search_cities", lambda q, count=6: [{"label": "Testville, NY, US", "name": "Testville", "lat": CENTER[0], "lon": CENTER[1], "country": "US", "timezone": "", "population": 1, "currency": money.USD.as_dict(), "budget": money.budget_choices(money.USD)}])
     appmod._hits.clear()
     appmod.app.config["TESTING"] = True
     return appmod.app.test_client()

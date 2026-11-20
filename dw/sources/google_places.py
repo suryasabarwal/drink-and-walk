@@ -20,7 +20,7 @@ import json
 import time
 from typing import Any
 
-from .. import config, geo
+from .. import config, geo, money
 from ..places import FANCY, _vibe, estimate_price, merge_duplicates
 from . import SourceDown
 from .http import session, take_quota
@@ -113,17 +113,20 @@ def _amenity(types: set[str], primary: str) -> str:
     return "restaurant"
 
 
-def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[str]) -> dict[str, Any]:
+def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[str], cur: money.Currency = money.USD) -> dict[str, Any]:
     p = estimate_price(amenity, name, {"cuisine": cuisine})
     level = g.get("priceLevel")
     tier = LEVEL_TIER.get(level)
     pricey_kind = bool(types & PRICEY_TYPES) or (g.get("servesCocktails") and not g.get("servesBeer") and amenity == "bar")
     rng = g.get("priceRange") or {}
     lo, hi = (rng.get("startPrice") or {}), (rng.get("endPrice") or {})
-    if lo.get("currencyCode") == "USD" and lo.get("units"):
-        low = int(lo["units"])
-        high = int(hi["units"]) if hi.get("units") else low + 10
-        p.update(low=low, high=high, mid=round((low + high) / 2), basis=f"Google says people usually spend ${low} to ${high}")
+    if lo.get("currencyCode") == cur.code and lo.get("units"):
+        # Google's range is in local money; the planner works in internal units (see dw/money.py)
+        lo_l = int(lo["units"])
+        hi_l = int(hi["units"]) if hi.get("units") else lo_l + 10 * cur.level
+        low, high = round(lo_l / cur.level), round(hi_l / cur.level)
+        p.update(low=low, high=high, mid=round((low + high) / 2),
+                 basis=f"Google says people usually spend {money.fmt_local(lo_l, cur)} to {money.fmt_local(hi_l, cur)}")
         tier = tier or ("cheap" if p["mid"] <= 14 else "ok" if p["mid"] <= 22 else "pricey")
         # "$20 to $30" is an ordinary bar night, and cutting those left one or two bars per area.
         # Only clearly expensive spends are cut; cheaper places still rank first.
@@ -142,7 +145,7 @@ def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[
     return p
 
 
-def normalize(g: dict[str, Any]) -> dict[str, Any] | None:
+def normalize(g: dict[str, Any], cur: money.Currency = money.USD) -> dict[str, Any] | None:
     if g.get("businessStatus", "OPERATIONAL") != "OPERATIONAL":
         return None
     name = ((g.get("displayName") or {}).get("text") or "").strip()
@@ -178,7 +181,7 @@ def normalize(g: dict[str, Any]) -> dict[str, Any] | None:
         "rating": g.get("rating"),
         "rating_count": g.get("userRatingCount") or 0,
         "vibe": _vibe({"outdoor_seating": "yes" if outdoor else "no"}, name, amenity if amenity != "nightclub" else "music_venue", live),
-        "price": _price(g, amenity, name, cuisine, types),
+        "price": _price(g, amenity, name, cuisine, types, cur),
     }
 
 
@@ -224,7 +227,18 @@ def _call(kind: str, lat: float, lon: float, radius: int) -> list[dict[str, Any]
     return places
 
 
-def places_near(lat: float, lon: float, radius: int, want_live: bool = False, want_late: bool = False):
+def _currency_from(raw: dict[str, dict[str, Any]]) -> money.Currency | None:
+    """The currency most places list their spend in, when the country is not known."""
+    seen: dict[str, int] = {}
+    for g in raw.values():
+        code = ((g.get("priceRange") or {}).get("startPrice") or {}).get("currencyCode")
+        if code:
+            seen[code] = seen.get(code, 0) + 1
+    return money.for_code(max(seen, key=seen.get)) if seen else None
+
+
+def places_near(lat: float, lon: float, radius: int, want_live: bool = False, want_late: bool = False,
+                cur: money.Currency | None = None):
     """(places, meta) within radius of the point. Raises SourceDown if the core searches fail."""
     slat, slon = round(lat, 3), round(lon, 3)  # about 100 m, so nearby start points share answers
     kinds = list(NEARBY_SEARCHES) + (["live"] if want_live else []) + (["late"] if want_late else [])
@@ -238,12 +252,13 @@ def places_near(lat: float, lon: float, radius: int, want_live: bool = False, wa
             failures.append(str(exc))
             if kind in NEARBY_SEARCHES and not raw:
                 raise  # the first core search failed, so let the caller fall back to the open map
+    cur = cur or _currency_from(raw) or money.USD
     out = []
     for g in raw.values():
-        p = normalize(g)
+        p = normalize(g, cur)
         if p and geo.haversine_m(lat, lon, p["lat"], p["lon"]) <= radius:
             out.append(p)
-    meta = {"source": "google", "searches": len(kinds)}
+    meta = {"source": "google", "searches": len(kinds), "currency": cur.as_dict()}
     if failures:
         meta["warning"] = failures[0]
     return merge_duplicates(out), meta

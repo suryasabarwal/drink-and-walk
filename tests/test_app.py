@@ -142,7 +142,7 @@ def test_weather_failure_is_reported_not_hidden(monkeypatch):
     def down(*a, **k): raise requests.ConnectionError("no")
     monkeypatch.setattr(weather.session, "get", down)
     assert weather.forecast(1, 1, date.today(), date.today()) is None
-    assert "weather forecast" in notes.banners([date.today()], "US", None)[0]["text"]
+    assert any("weather forecast" in b["text"] for b in notes.banners([date.today()], "US", None))
     # past the forecast range there is nothing to know yet, which is not a failure
     assert weather.forecast(1, 1, date.today() + timedelta(days=40), date.today() + timedelta(days=41)) == {}
 

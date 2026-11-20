@@ -9,7 +9,7 @@ from functools import wraps
 
 from flask import Flask, Response, jsonify, render_template, request
 
-from dw import config, deals as deal_board, export, notes, planner, voice
+from dw import config, deals as deal_board, export, money, notes, planner, voice
 from dw.sources import SourceDown, geocode, google_places, overpass, ticketmaster, weather
 
 app = Flask(__name__)
@@ -111,7 +111,10 @@ def _parse_plan_request(j: dict):
     stay = j.get("stay") or {}
     city = j.get("city") or {}
     people = int(_float("people", 1, config.MAX_PEOPLE, j))
-    budget = _float("budget_pp", 5, 300, j)
+    # the budget arrives in local money; the planner works in internal units (dw/money.py)
+    cur = money.for_country((j.get("city") or {}).get("country"))
+    lv = (cur or money.USD).level
+    budget = _float("budget_pp", 5 * lv, 300 * lv, j) / lv
     vibe = j.get("vibe") if j.get("vibe") in ("dive", "chill", "lively") else "dive"
     return {
         "days": [start + timedelta(days=i) for i in range(nights)],
@@ -119,6 +122,7 @@ def _parse_plan_request(j: dict):
         "city": {"name": str(city.get("name") or "")[:80], "country": str(city.get("country") or "")[:2].upper()},
         "people": people,
         "budget": budget,
+        "currency": cur,
         "vibe": vibe,
         "live": bool(j.get("live_music")),
         "late": bool(j.get("late_night")),
@@ -127,16 +131,17 @@ def _parse_plan_request(j: dict):
     }
 
 
-def get_places(lat: float, lon: float, radius: int, want_live: bool = False, want_late: bool = False):
+def get_places(lat: float, lon: float, radius: int, want_live: bool = False, want_late: bool = False, cur=None):
     """Google Places when a key is set (best data), else OpenStreetMap. Falls back to the open map
     if Google fails, and says so in meta."""
     if google_places.enabled():
         try:
-            return google_places.places_near(lat, lon, radius, want_live, want_late)
+            return google_places.places_near(lat, lon, radius, want_live, want_late, cur)
         except SourceDown as exc:
             places, meta = overpass.elements_near(lat, lon, radius)
-            return places, {**meta, "fallback_from": str(exc)}
-    return overpass.elements_near(lat, lon, radius)
+            return places, {**meta, "fallback_from": str(exc), "currency": (cur or money.USD).as_dict()}
+    places, meta = overpass.elements_near(lat, lon, radius)
+    return places, {**meta, "currency": (cur or money.USD).as_dict()}
 
 
 def _attach_text(plan):
@@ -148,12 +153,13 @@ def _attach_text(plan):
 @limited("plan", 10)
 def make_plan():
     r = _parse_plan_request(request.get_json(silent=True) or {})
-    places, meta = get_places(r["stay"]["lat"], r["stay"]["lon"], r["radius"], r["live"], r["late"])
+    places, meta = get_places(r["stay"]["lat"], r["stay"]["lon"], r["radius"], r["live"], r["late"], r["currency"])
+    cur = r["currency"] or money.from_dict(meta.get("currency"))
     deals = deal_board.for_places({p["id"] for p in places})
     wx = weather.forecast(r["stay"]["lat"], r["stay"]["lon"], r["days"][0], r["days"][-1])
     events = ticketmaster.events(r["stay"]["lat"], r["stay"]["lon"], r["days"][0], r["days"][-1])
     plan = planner.build_plan(
-        places, r["stay"], r["days"], r["people"], r["budget"], r["vibe"], r["live"], r["late"], r["free"], deals, events
+        places, r["stay"], r["days"], r["people"], r["budget"], r["vibe"], r["live"], r["late"], r["free"], deals, events, cur
     )
     plan["city"] = r["city"]["name"]
     plan["country"] = r["city"]["country"]
@@ -195,7 +201,7 @@ def nearby():
     mode = request.args.get("mode", "drink")
     if mode not in ("drink", "eat", "music", "free", "late"):
         raise ValueError("unknown mode")
-    places, meta = get_places(lat, lon, 1200, mode == "music", mode == "late")
+    places, meta = get_places(lat, lon, 1200, mode == "music", mode == "late", money.for_country(request.args.get("country")))
     deals = deal_board.for_places({p["id"] for p in places})
     return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places), google=meta.get("source") == "google")
 
