@@ -392,7 +392,8 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None
         ) if bad]
         if why:
             if skipped is not None:
-                skipped.append({"name": p["name"], "why": why, "m": round(dist), "rating": p.get("rating"), "reviews": p.get("rating_count") or 0})
+                skipped.append({"name": p["name"], "why": why, "m": round(dist), "rating": p.get("rating"), "reviews": p.get("rating_count") or 0,
+                                "price": p["price"].get("basis", "")})
             continue
         score = TIER_BONUS[p["price"]["tier"]] + rating_bonus(p) - 1.2 * dist / 1000 + (0.6 if deals.get(p["id"]) else 0) - (0.2 if state is None else 0)
         out.append((score, p, dist, state))
