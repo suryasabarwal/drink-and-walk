@@ -7,7 +7,9 @@ price shown leaves through `fmt`.
 `level` is NOT an exchange rate. It is roughly how many units of local money buy what one US
 dollar buys on a cheap night out there (a pint, a taco, a slice). A beer in Lisbon costs fewer
 euros than it costs dollars in Austin, so Lisbon's level is below the euro's exchange rate.
-These are rough, hand-set numbers, and every price in the app is labeled an estimate.
+These are rough, hand-set numbers, and every price in the app is labeled an estimate. India was
+first set at 30 and checked against live Google ranges in Delhi and Gurugram: a ₹350 to ₹450 beer
+and ₹800 to ₹2,000 brewpubs put it nearer 60.
 When Google lists a real local spend range for a place, that range is used instead.
 """
 from __future__ import annotations
@@ -47,7 +49,7 @@ BY_COUNTRY: dict[str, Currency] = {
     "PL": _c("PLN", "zł", 2.4, True), "HU": _c("HUF", "Ft", 220, True), "RO": _c("RON", "lei", 2.5, True),
     "TR": _c("TRY", "₺", 18), "JP": _c("JPY", "¥", 100), "KR": _c("KRW", "₩", 1100), "CN": _c("CNY", "¥", 4.5),
     "HK": _c("HKD", "HK$", 7), "TW": _c("TWD", "NT$", 25), "SG": _c("SGD", "S$", 1.3), "TH": _c("THB", "฿", 18),
-    "VN": _c("VND", "₫", 12000, True), "MY": _c("MYR", "RM", 2.5), "PH": _c("PHP", "₱", 30), "IN": _c("INR", "₹", 30),
+    "VN": _c("VND", "₫", 12000, True), "MY": _c("MYR", "RM", 2.5), "PH": _c("PHP", "₱", 30), "IN": _c("INR", "₹", 60),
     "AE": _c("AED", "AED ", 3.7), "IL": _c("ILS", "₪", 3.5), "ZA": _c("ZAR", "R", 9), "BR": _c("BRL", "R$", 3),
     "CO": _c("COP", "$", 2500), "CL": _c("CLP", "$", 600), "PE": _c("PEN", "S/", 2.5),
 }

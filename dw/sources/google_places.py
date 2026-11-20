@@ -123,10 +123,12 @@ def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[
     if lo.get("currencyCode") == cur.code and lo.get("units"):
         # Google's range is in local money; the planner works in internal units (see dw/money.py)
         lo_l = int(lo["units"])
-        hi_l = int(hi["units"]) if hi.get("units") else lo_l + 10 * cur.level
+        open_ended = not hi.get("units")  # Google's top bracket, like "₹2,000+", has no end price
+        hi_l = int(hi["units"]) if not open_ended else round(lo_l * 1.5)
         low, high = round(lo_l / cur.level), round(hi_l / cur.level)
-        p.update(low=low, high=high, mid=round((low + high) / 2),
-                 basis=f"Google says people usually spend {money.fmt_local(lo_l, cur)} to {money.fmt_local(hi_l, cur)}")
+        spend = (f"{money.fmt_local(lo_l, cur)} or more" if open_ended
+                 else f"{money.fmt_local(lo_l, cur)} to {money.fmt_local(hi_l, cur)}")
+        p.update(low=low, high=high, mid=round((low + high) / 2), basis=f"Google says people usually spend {spend}")
         tier = tier or ("cheap" if p["mid"] <= 14 else "ok" if p["mid"] <= 22 else "pricey")
         # "$20 to $30" is an ordinary bar night, and cutting those left one or two bars per area.
         # Only clearly expensive spends are cut; cheaper places still rank first.

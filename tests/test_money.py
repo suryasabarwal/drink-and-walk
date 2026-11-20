@@ -15,6 +15,7 @@ def test_formats_read_like_local_prices():
     assert money.fmt(14, money.for_country("JP")) == "¥1,400"
     assert money.fmt(14, money.for_country("DK")) == "91 kr"   # suffix currencies read the local way
     assert money.fmt(14, money.for_country("GB")) == "£10"
+    assert money.fmt(14, money.for_country("IN")) == "₹840"
     assert money.for_country("XX") is None
 
 
@@ -81,3 +82,13 @@ def test_nearby_and_city_search_carry_the_currency(client):
     assert r["meta"]["currency"]["code"] == "GBP"
     c = client.get("/api/cities?q=te").json["results"][0]
     assert c["currency"]["code"] == "USD" and c["budget"]["default"] == 50
+
+
+def test_open_ended_google_range_says_or_more():
+    india = money.for_country("IN")
+    top = g(3, "Upscale Test Bar", "bar", ["bar"], level="PRICE_LEVEL_EXPENSIVE")
+    top["priceRange"] = {"startPrice": {"currencyCode": "INR", "units": "2000"}}
+    p = G.normalize(top, india)
+    assert p["price"]["basis"] == "Google says people usually spend ₹2,000 or more" and p["price"]["tier"] == "pricey"
+    brewpub = G.normalize(g(4, "Test Brewpub", "bar", ["bar", "brewpub"], (800, 2000), level="PRICE_LEVEL_MODERATE", cur="INR"), india)
+    assert brewpub["price"]["tier"] != "pricey"   # a ₹800 to ₹2,000 brewpub is a normal night in Gurugram
