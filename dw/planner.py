@@ -444,6 +444,7 @@ def clean_plan(raw: dict[str, Any]) -> dict[str, Any]:
         "people": int(_num(raw.get("people"), 1, 20, 2)),
         "budget_pp": _num(raw.get("budget_pp"), 5, 500, 40),
         "currency": money.from_dict(raw.get("currency")).as_dict(),
+        "google": bool(raw.get("google")),
         "vibe": raw.get("vibe") if raw.get("vibe") in ("dive", "chill", "lively") else "dive",
         "city": _s(raw.get("city"), 80),
         "nights": [],

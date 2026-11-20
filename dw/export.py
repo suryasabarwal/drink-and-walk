@@ -46,7 +46,10 @@ def to_text(plan: dict[str, Any]) -> str:
             lines.append(f"Home: {h['min']} min walk, or book a ride before the last round.")
         lines.append("")
     lines.append("Prices are estimates. Call ahead to confirm hours and specials.")
-    lines.append("Made with Drink and Walk. Map data from OpenStreetMap contributors.")
+    if plan.get("google"):
+        lines.append("Made with Drink and Walk. Places, prices and hours from Google Maps.")
+    else:
+        lines.append("Made with Drink and Walk. Map data from OpenStreetMap contributors.")
     return "\n".join(lines)
 
 

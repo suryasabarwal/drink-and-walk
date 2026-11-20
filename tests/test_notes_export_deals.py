@@ -72,3 +72,11 @@ def test_deal_text_allows_at_sign_but_not_links():
     for bad in ("see bit.ly/x", "mail me at a@b.co", "https://x", "www.cheap", "promo at cheapbeer.com"):
         with pytest.raises(deals.DealError):
             deals.clean(bad, 1, 140, "deal")
+
+
+def test_text_credits_the_source_the_places_came_from():
+    from dw import export
+    plan = {"people": 2, "stay": {"name": ""}, "nights": [], "google": True}
+    assert "from Google Maps" in export.to_text(plan) and "OpenStreetMap" not in export.to_text(plan)
+    plan["google"] = False
+    assert "OpenStreetMap contributors" in export.to_text(plan)
