@@ -127,7 +127,7 @@ VIEWS.home = app => {
           ['2', 'Choose what you are after: drinks, food, live music or late food.'],
           ['3', 'Get the closest cheap places that are open now, with the walk, a price estimate and the rating.']]
         .map(([n, t]) => h('div', {}, h('span', { class: 'n' }, n), h('span', {}, t)))),
-    credits(),
+    credits(window.DW && window.DW.google),
   );
 };
 
@@ -138,7 +138,7 @@ function credits(google) {
     h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, 'OpenStreetMap contributors'),
     '. Weather from ',
     h('a', { href: 'https://open-meteo.com/', target: '_blank', rel: 'noopener' }, 'Open-Meteo'),
-    '. Prices are estimates from the type of place, so call or check the menu before you go. We do not store your location.');
+    '. Prices are estimates, so call or check the menu before you go. We do not store your location.');
 }
 
 /* --- step 1: city --- */

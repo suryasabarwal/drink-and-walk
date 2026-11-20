@@ -66,7 +66,7 @@ def _bad(exc):
 
 @app.get("/")
 def index():
-    return render_template("index.html", ticketmaster=ticketmaster.enabled())
+    return render_template("index.html", ticketmaster=ticketmaster.enabled(), google=google_places.enabled())
 
 
 @app.get("/healthz")
