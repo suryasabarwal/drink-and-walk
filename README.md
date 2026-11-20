@@ -8,7 +8,23 @@ A cheap night out for friends splitting the bill. Pick a city, dates, group size
 where you are staying. Drink and Walk builds a walking route of cheap food, happy hours and live
 music, in order, with walking times and a running cost.
 
-Everything runs on free data. No accounts, no database, no API key required.
+No accounts and no database. It runs on free OpenStreetMap data out of the box, and a Google Places
+key (free monthly allowance) adds real prices, opening hours and ratings.
+
+## Why I built this
+
+I travel the world and work remotely on US hours. Wherever I am, the workday ends late at night,
+and that is the only window I have to get out, blow off some steam and grab a drink.
+
+The cities are new to me, so the question is always the same: what is open near me right now that
+I would actually like? Google Maps can answer it, but only after a lot of searching, filtering and
+opening one place after another. AI chat tools answer fast, but bury the answer in things I did
+not ask for.
+
+With an hour before bed, I want three or four places close by, each with the walking distance, the
+rating and review count, and a good reason to think I will enjoy it. That is what **I'm out right
+now** does. The vibes are dive and chill because those are the bars I like. The trip planner grew
+out of the same idea, for nights when friends come along and someone has to plan the route.
 
 ## What it does
 
