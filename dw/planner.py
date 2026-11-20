@@ -16,6 +16,9 @@ from . import geo, money, voice
 from .places import DRINK_AMENITIES, TICKETED, open_state
 
 FOOD_ROLE = {"restaurant", "fast_food", "food_court"}
+# Under 4 stars (with 15 or more reviews) is left out everywhere. Cheap is the point, bad is not.
+MIN_STARS = 4.0
+NEAR_RADIUS_M = 1500  # "I'm out right now" looks this far, in a straight line
 TIER_BONUS = {"cheap": 0.5, "ok": 0.15, "pricey": -9.0}
 # The "last one" stop is one round, not two, so it counts for half.
 COST_FACTOR = {"last": 0.5, "breather": 0.5}  # one round, not two
@@ -41,7 +44,7 @@ def chain_names(places: list[dict[str, Any]]) -> set[str]:
 
 def _low_rated(place: dict[str, Any]) -> bool:
     r, n = place.get("rating"), place.get("rating_count") or 0
-    return r is not None and n >= 15 and r < 3.5
+    return r is not None and n >= 15 and r < MIN_STARS
 
 
 def stop_cost(slot: str, place: dict[str, Any]) -> tuple[int, int, int]:
@@ -359,8 +362,8 @@ def _late_confirmed(place, day: int, minute: int) -> bool:
     return open_state(place, day, max(minute, tonight_late), span=60) is True
 
 
-def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None, radius=1200) -> list[dict[str, Any]]:
-    """Everything cheap and open within about a 15 minute walk, best first. The page shows it in batches."""
+def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None, radius=NEAR_RADIUS_M) -> list[dict[str, Any]]:
+    """Everything cheap, open and well rated within 1.5 km, best first. The page shows it in batches."""
     out = []
     for p in places:
         a = p["amenity"]

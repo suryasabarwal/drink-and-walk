@@ -682,7 +682,7 @@ VIEWS.nearby = app => {
       `The map knows ${S.near.known} places around here, and none of them fit. Try another mood, or walk toward the noise.`));
   } else {
     const all = S.near.results, shown = all.slice(0, S.near.shown || NEAR_BATCH), left = all.length - shown.length;
-    put(app, h('p', { class: 'count' }, `${all.length} ${all.length === 1 ? 'place' : 'places'} within a 15 minute walk, closest and best value first.`),
+    put(app, h('p', { class: 'count' }, `${all.length} ${all.length === 1 ? 'place' : 'places'} within 1.5 km, 4 stars and up, closest and best value first.`),
       h('div', { class: 'list-cards' }, ...shown.map(r => {
       const p = r.place;
       return h('article', { class: 'card place' },
@@ -698,7 +698,7 @@ VIEWS.nearby = app => {
         ? h('button', { class: 'btn ghost more', onclick: () => {
             const y = scrollY; S.near.shown = shown.length + NEAR_BATCH; render(); scrollTo(0, y);
           } }, left > NEAR_BATCH ? [`Show ${NEAR_BATCH} more`, h('span', { class: 'muted' }, ` of ${left} left`)] : (left === 1 ? 'Show the last one' : `Show the last ${left}`))
-        : all.length > NEAR_BATCH ? h('p', { class: 'count end' }, 'That is everything cheap and open within a 15 minute walk. The rest is closed, overpriced or badly reviewed.') : null);
+        : all.length > NEAR_BATCH ? h('p', { class: 'count end' }, 'That is everything cheap, open and 4 stars or better within 1.5 km. The rest did not make the cut.') : null);
   }
   put(app, credits(S.near.google));
 };

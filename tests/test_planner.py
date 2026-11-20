@@ -246,6 +246,19 @@ def test_out_right_now_returns_everything_in_walking_distance_for_show_more():
         return {"id": f"n{i}", "name": f"Bar {i}", "lat": 0.0, "lon": lon, "amenity": "bar", "live_music": False, "ticketed": False,
                 "no_cover": False, "hours_week": [[[0, 1680]]] * 7, "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
     near = [bar(i, 0.0005 * i) for i in range(20)]      # all within about 1.1 km
-    far = [bar(100, 0.02)]                               # about 2.2 km: past a 15 minute walk
+    far = [bar(100, 0.02)]                               # about 2.2 km: past the 1.5 km limit
     got = planner.nearby(near + far, 0.0, 0.0, 4, 21 * 60, "drink", {})
-    assert len(got) == 20 and all(r["walk"]["m"] <= 1200 for r in got)
+    assert len(got) == 20 and all(r["walk"]["m"] <= 1500 for r in got)
+
+
+def test_four_stars_is_the_floor_and_reach_is_one_and_a_half_km():
+    from dw import planner
+    def bar(i, rating, lon=0.0, count=80):
+        return {"id": f"n{i}", "name": f"Bar {i}", "lat": 0.0, "lon": lon, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "rating": rating, "rating_count": count, "hours_week": [[[0, 1680]]] * 7,
+                "price": {"tier": "ok", "mid": 18, "low": 15, "high": 22}}
+    ps = [bar(1, 4.0), bar(2, 3.9), bar(3, 3.6, count=8), bar(4, 4.6, lon=0.0130), bar(5, 4.6, lon=0.0140)]  # 1.45 km and 1.56 km
+    got = [r["place"]["id"] for r in planner.nearby(ps, 0.0, 0.0, 4, 21 * 60, "drink", {})]
+    assert "n1" in got and "n2" not in got       # 4.0 in, 3.9 out
+    assert "n3" in got                           # too few reviews to judge, so it stays
+    assert "n4" in got and "n5" not in got       # inside 1.5 km in, past it out

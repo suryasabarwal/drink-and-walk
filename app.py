@@ -230,7 +230,7 @@ def nearby():
     mode = request.args.get("mode", "drink")
     if mode not in ("drink", "eat", "music", "free", "late"):
         raise ValueError("unknown mode")
-    places, meta = get_places(lat, lon, 1200, mode == "music", mode == "late", money.for_country(request.args.get("country")))
+    places, meta = get_places(lat, lon, planner.NEAR_RADIUS_M, mode == "music", mode == "late", money.for_country(request.args.get("country")))
     deals = deal_board.for_places({p["id"] for p in places})
     return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places), google=meta.get("source") == "google")
 

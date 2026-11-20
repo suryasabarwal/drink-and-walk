@@ -37,7 +37,7 @@ out of the same idea, for nights when friends come along and someone has to plan
 - **A snapshot per place.** Walking time, a price estimate in local money, rating and review count,
   patio and live music tags, plus **Map** and **Check Reddit** links.
 - **Cheap by design.** Cocktail lounges, rooftop, wine and hotel bars are left out, and so are places
-  rated under 3.5 stars.
+  rated under 4 stars.
 
 ### Plan a night with friends
 
