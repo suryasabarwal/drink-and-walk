@@ -262,3 +262,16 @@ def test_four_stars_is_the_floor_and_reach_is_one_and_a_half_km():
     assert "n1" in got and "n2" not in got       # 4.0 in, 3.9 out
     assert "n3" in got                           # too few reviews to judge, so it stays
     assert "n4" in got and "n5" not in got       # inside 1.5 km in, past it out
+
+
+def test_explain_lists_every_reason_a_place_was_left_out():
+    from dw import planner
+    def bar(i, rating, lon, hours=[[[0, 1680]]] * 7, tier="ok"):
+        return {"id": f"n{i}", "name": f"Bar {i}", "lat": 0.0, "lon": lon, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "rating": rating, "rating_count": 80, "hours_week": hours, "price": {"tier": tier, "mid": 18, "low": 15, "high": 22}}
+    ps = [bar(1, 4.4, 0.001), bar(2, 3.8, 0.0125), bar(3, 4.2, 0.02, hours=[[] for _ in range(7)]), bar(4, 4.5, 0.002, tier="pricey")]
+    skipped = []
+    got = planner.nearby(ps, 0.0, 0.0, 4, 21 * 60, "drink", {}, skipped=skipped)
+    assert [r["place"]["id"] for r in got] == ["n1"]
+    why = {s["name"]: s["why"] for s in skipped}
+    assert why == {"Bar 2": ["under_4_stars"], "Bar 3": ["too_far", "closed"], "Bar 4": ["pricey"]}

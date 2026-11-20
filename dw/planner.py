@@ -362,8 +362,12 @@ def _late_confirmed(place, day: int, minute: int) -> bool:
     return open_state(place, day, max(minute, tonight_late), span=60) is True
 
 
-def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None, radius=NEAR_RADIUS_M) -> list[dict[str, Any]]:
-    """Everything cheap, open and well rated within 1.5 km, best first. The page shows it in batches."""
+def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None, radius=NEAR_RADIUS_M,
+           skipped: list | None = None) -> list[dict[str, Any]]:
+    """Everything cheap, open and well rated within 1.5 km, best first. The page shows it in batches.
+
+    Pass a list as `skipped` to get the places of this kind that were left out, and every reason why.
+    """
     out = []
     for p in places:
         a = p["amenity"]
@@ -377,15 +381,18 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None
             continue
         if mode == "late" and a not in FOOD_ROLE:
             continue
-        if p["price"]["tier"] == "pricey" or _low_rated(p):
-            continue
         dist = geo.haversine_m(lat, lon, p["lat"], p["lon"])
-        if dist > radius:
-            continue
         state = open_state(p, day, minute, span=30)
-        if state is False:
-            continue
-        if mode == "late" and not _late_confirmed(p, day, minute):
+        why = [r for r, bad in (
+            ("pricey", p["price"]["tier"] == "pricey"),
+            ("under_4_stars", _low_rated(p)),
+            ("too_far", dist > radius),
+            ("closed", state is False),
+            ("not_open_late", mode == "late" and state is not False and not _late_confirmed(p, day, minute)),
+        ) if bad]
+        if why:
+            if skipped is not None:
+                skipped.append({"name": p["name"], "why": why, "m": round(dist), "rating": p.get("rating"), "reviews": p.get("rating_count") or 0})
             continue
         score = TIER_BONUS[p["price"]["tier"]] + rating_bonus(p) - 1.2 * dist / 1000 + (0.6 if deals.get(p["id"]) else 0) - (0.2 if state is None else 0)
         out.append((score, p, dist, state))

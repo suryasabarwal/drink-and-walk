@@ -232,7 +232,10 @@ def nearby():
         raise ValueError("unknown mode")
     places, meta = get_places(lat, lon, planner.NEAR_RADIUS_M, mode == "music", mode == "late", money.for_country(request.args.get("country")))
     deals = deal_board.for_places({p["id"] for p in places})
-    return jsonify(results=planner.nearby(places, lat, lon, day, minute, mode, deals), meta=meta, total_known=len(places), google=meta.get("source") == "google")
+    skipped = [] if request.args.get("explain") == "1" else None
+    results = planner.nearby(places, lat, lon, day, minute, mode, deals, skipped=skipped)
+    extra = {"skipped": skipped} if skipped is not None else {}
+    return jsonify(results=results, meta=meta, total_known=len(places), google=meta.get("source") == "google", **extra)
 
 
 @app.post("/api/deals")
