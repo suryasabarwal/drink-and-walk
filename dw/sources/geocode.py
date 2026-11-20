@@ -42,6 +42,35 @@ def search_cities(query: str, count: int = 6) -> list[dict[str, Any]]:
     return out
 
 
+def find_place(query: str) -> list[dict[str, Any]]:
+    """Any neighborhood, street or landmark, worldwide, from Nominatim. On submit only, 1 a second."""
+    q = (query or "").strip()
+    if len(q) < 3:
+        return []
+    try:
+        throttle("nominatim", 1.1)
+        r = session.get(config.NOMINATIM_URL, params={"q": q[:120], "format": "jsonv2", "limit": 6, "addressdetails": 1},
+                        timeout=config.HTTP_TIMEOUT)
+        r.raise_for_status()
+        rows = r.json()
+    except (OSError, ValueError) as exc:
+        raise SourceDown(f"address search: {type(exc).__name__}") from exc
+    out = []
+    for row in rows:
+        if "lat" not in row or "lon" not in row:
+            continue
+        a = row.get("address") or {}
+        name = (row.get("name") or row.get("display_name", "").split(",")[0]).strip()
+        out.append({
+            "label": name[:100],
+            "sub": ", ".join(row.get("display_name", "").split(", ")[1:4])[:140],
+            "lat": float(row["lat"]), "lon": float(row["lon"]),
+            "country": (a.get("country_code") or "").upper()[:2],
+            "town": (a.get("city") or a.get("town") or a.get("state_district") or a.get("state") or "")[:60],
+        })
+    return out
+
+
 def locate(query: str, near_lat: float, near_lon: float) -> list[dict[str, Any]]:
     """Find a hotel or street address close to the chosen city. Called on submit, never while typing."""
     q = (query or "").strip()

@@ -28,6 +28,8 @@ GOOGLE_PLACES_KEY = os.environ.get("GOOGLE_PLACES_KEY", "")
 # Calls a day across all visitors. A new area costs 6 to 8 calls, then nothing for 12 hours.
 GOOGLE_DAILY_LIMIT = int(os.environ.get("DW_GOOGLE_DAILY_LIMIT", "30"))
 GOOGLE_CACHE_HOURS = 12
+# Place search suggestions and picks a day (free monthly allowance is far larger).
+GOOGLE_AC_DAILY_LIMIT = int(os.environ.get("DW_GOOGLE_AC_DAILY_LIMIT", "300"))
 
 DEFAULT_RADIUS_M = 1500
 MAX_RADIUS_M = 4000

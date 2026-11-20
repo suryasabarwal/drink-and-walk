@@ -32,6 +32,23 @@ const fromIso = s => { const [y, m, d] = s.split('-').map(Number); return new Da
 const fmtDay = d => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const nights = () => S.start && S.end ? Math.round((fromIso(S.end) - fromIso(S.start)) / 864e5) + 1 : 0;
+/* ---------- icons ---------- */
+const ICONS = {
+  pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>',
+  locate: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/>',
+  map: '<path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
+  chat: '<path d="M20 14.5a2 2 0 0 1-2 2H8.5L4 20V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  swap: '<path d="M16 3l4 4-4 4"/><path d="M4 7h16"/><path d="M8 21l-4-4 4-4"/><path d="M20 17H4"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+};
+function icon(name) {
+  const el = document.createElement('span'); el.className = 'ico'; el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+  return el;
+}
+const shortCount = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(n);
+
 /* money: the server plans in internal units; these turn them into local money (see dw/money.py) */
 const USD = { code: 'USD', symbol: '$', level: 1, suffix: false };
 const DEFAULT_BUDGET = { min: 20, max: 150, step: 5, default: 50, chips: [30, 50, 75, 100] };
@@ -69,7 +86,7 @@ function backStep() {
 
 function render() {
   const app = $('#app');
-  app.replaceChildren();
+  app.replaceChildren(); app.classList.remove('near');
   const bar = $('#barinner');
   bar.replaceChildren();
   $('#bar').hidden = true;
@@ -116,17 +133,20 @@ const VIEWS = {};
 
 VIEWS.home = app => {
   put(app,
+    h('p', { class: 'kicker' }, 'Late shift over. Now what.'),
     h('h1', {}, "What's open near me, right now."),
-    h('p', { class: 'lead' }, 'For the hour after work in a city you do not know yet. Cheap bars and food that are open now, a short walk away, with ratings and walking times.'),
-    h('button', { class: 'choice big', onclick: startNearby },
-      h('div', {}, h('b', {}, "I'm out right now"), h('span', { class: 'd' }, 'Cheap drinks, food, live music or late food, open now and close by.'))),
+    h('p', { class: 'lead' }, 'For the hour after work in a city you met this morning. Cheap bars and food, open now, a short walk away. No twenty open tabs.'),
+    h('button', { class: 'choice big hero', onclick: startNearby },
+      h('span', { class: 'tile', 'aria-hidden': 'true' }, '🍺'),
+      h('div', {}, h('b', {}, "I'm out right now"), h('span', { class: 'd' }, 'Open now, close by, cheap. Pick a mood and start walking.'))),
     h('button', { class: 'choice big', onclick: () => { S.flow = 'plan'; go('city'); } },
-      h('div', {}, h('b', {}, 'Plan a night with friends'), h('span', { class: 'd' }, 'A walking route for up to four nights, with a budget and a running cost. Five quick questions.'))),
+      h('span', { class: 'tile', 'aria-hidden': 'true' }, '🗺️'),
+      h('div', {}, h('b', {}, 'Plan a night with friends'), h('span', { class: 'd' }, 'A walking route, a budget, and somebody else doing the group math.'))),
     h('div', { class: 'how' },
       h('h3', {}, 'How it works'),
-      ...[['1', "Tap I'm out right now and share your location, or pick the city."],
-          ['2', 'Choose what you are after: drinks, food, live music or late food.'],
-          ['3', 'Get the closest cheap places that are open now, with the walk, a price estimate and the rating.']]
+      ...[['1', "Tap I'm out right now. Share your location, or pick a spot."],
+          ['2', 'Pick a mood: drinks, food, live music, or something greasy and late.'],
+          ['3', 'Get the closest cheap places that are open, with the walk, the price and the stars.']]
         .map(([n, t]) => h('div', {}, h('span', { class: 'n' }, n), h('span', {}, t)))),
     credits(window.DW && window.DW.google),
   );
@@ -145,34 +165,20 @@ function credits(google) {
 }
 
 /* --- step 1: city --- */
-VIEWS.city = (app, bar) => cityView(app, bar, 'Where are you headed?', 'Start typing a city. Pick it from the list.', () => go('dates'), 'Next');
-VIEWS.nearcity = (app, bar) => cityView(app, bar, 'Where are you?',
-  S.near.locFailed ? 'We could not get your location. Pick the city, then a street or hotel if you like.' : 'Pick the city, then a street, hotel or bar near you if you like.',
-  () => { S.near.country = S.city.country; S.near.cityName = S.city.name; loadNearby({ lat: S.city.lat, lon: S.city.lon }, 'the center of ' + S.city.name); },
-  'Search from the city center', nearPlaceSearch);
+VIEWS.city = (app, bar) => cityView(app, bar, 'Where are you headed?', 'Start typing a city. We will act like we have been there.', () => go('dates'), 'Next');
+VIEWS.nearcity = app => {
+  put(app, h('h2', {}, 'Where are you?'),
+    h('p', { class: 'lead' }, S.near.locFailed
+      ? 'Your phone kept your location to itself. Fair. Search a neighborhood, street or hotel instead.'
+      : 'Any neighborhood, sector, street, hotel or city. "DLF Phase 1", "Vasant Vihar", "Soho London" all work.'),
+    placeSearch({
+      near: S.near.at ? [S.near.at.lat, S.near.at.lon] : null,
+      placeholder: 'Search a neighborhood, street or hotel',
+      onPick: pt => { S.near.country = pt.country || null; S.near.cityName = pt.town || pt.name; loadNearby({ lat: pt.lat, lon: pt.lon }, pt.name); },
+    }),
+    h('div', { style: 'margin-top:14px' }, h('button', { class: 'lnk', onclick: useMyLocation }, icon('locate'), 'Use my location instead')));
+};
 
-// optional: a street, hotel or bar inside the picked city, so results start from the right corner
-function nearPlaceSearch(box) {
-  const q = h('input', { type: 'search', placeholder: 'Street, hotel or bar name', 'aria-label': 'Street, hotel or bar name', autocomplete: 'off' });
-  const note = h('p', { class: 'help', 'aria-live': 'polite' });
-  const found = h('ul', { class: 'list', hidden: true });
-  const search = async () => {
-    const text = q.value.trim();
-    if (text.length < 3) { note.textContent = 'Type at least 3 letters.'; return; }
-    note.textContent = 'Searching...';
-    try {
-      const j = await api(`/api/locate?q=${encodeURIComponent(text)}&lat=${S.city.lat}&lon=${S.city.lon}`);
-      found.replaceChildren(...j.results.map(r => h('li', { role: 'presentation' }, h('button', { onclick: () => {
-        S.near.country = S.city.country; S.near.cityName = S.city.name; loadNearby({ lat: r.lat, lon: r.lon }, shortAddress(r.label));
-      } }, r.label))));
-      found.hidden = !j.results.length;
-      note.textContent = j.results.length ? '' : 'Nothing found in ' + S.city.name + '. Try a street name, or search from the center.';
-    } catch (e) { note.textContent = e.message; }
-  };
-  q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
-  put(box, h('h3', {}, 'Near a street, hotel or bar (optional)'),
-    h('div', { class: 'row' }, q, h('button', { class: 'btn ghost', style: 'flex:none', onclick: search }, 'Search')), note, found);
-}
 
 function cityView(app, bar, title, lead, next, label, extra) {
   let timer, results = [], active = -1;
@@ -201,7 +207,7 @@ function cityView(app, bar, title, lead, next, label, extra) {
     if (q.length < 2) { results = []; paint(); status.textContent = ''; return; }
     timer = setTimeout(async () => {
       try {
-        status.textContent = 'Searching...';
+        status.textContent = 'Looking...';
         const j = await api('/api/cities?q=' + encodeURIComponent(q));
         if (input.value.trim() !== q) return;
         results = j.results; active = -1; paint();
@@ -249,7 +255,7 @@ VIEWS.dates = (app, bar) => {
   s.addEventListener('change', update); e.addEventListener('change', update);
   const sat = nextDow(today, 6);
   put(app, h('h2', {}, 'When are you going?'),
-    h('p', { class: 'lead' }, 'Up to four nights. Dates matter because hours, happy hours and crowds change by day.'),
+    h('p', { class: 'lead' }, 'Up to four nights. Hours, happy hours and crowds all change by the day, so the dates matter.'),
     h('div', { class: 'chips' },
       h('button', { class: 'chip', onclick: () => set(...weekend(0)) }, 'This weekend'),
       h('button', { class: 'chip', onclick: () => set(...weekend(7)) }, 'Next weekend'),
@@ -279,14 +285,56 @@ VIEWS.group = (app, bar) => {
   slider.addEventListener('input', () => { S.budget = +slider.value; money.textContent = fmtLocal(S.budget, cur); });
   put(app, h('h2', {}, 'How many of you?'),
     h('div', { class: 'stepper' }, dec, count, inc),
-    h('p', { class: 'help', style: 'text-align:center' }, 'Including you.'),
+    h('p', { class: 'help', style: 'text-align:center' }, 'Including you. Especially you.'),
     h('h3', {}, 'Your limit per person, per night'),
     money, slider,
     h('div', { class: 'chips', style: 'justify-content:center' }, ...B.chips.map(v =>
       h('button', { class: 'chip', onclick: () => { S.budget = v; slider.value = v; money.textContent = fmtLocal(v, cur); } }, fmtLocal(v, cur)))),
-    h('p', { class: 'help' }, 'This covers food and drinks, not the ride home. If a plan runs over, we drop the last round first and tell you.'));
+    h('p', { class: 'help' }, 'Food and drinks, not the ride home. If the night runs over, the last round goes first, and we will say so.'));
   setBar(bar, { label: 'Next', onclick: () => go('start'), ok: true });
 };
+
+/* ---------- place search: neighborhoods, sectors, streets, hotels, cities ---------- */
+// With Google: suggestions while you type. Without: OpenStreetMap, when you press Search.
+function placeSearch({ near, placeholder, onPick }) {
+  const live = !!(window.DW && window.DW.google);
+  const token = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
+  const input = h('input', { type: 'search', placeholder, 'aria-label': 'Search a place', autocomplete: 'off', enterkeyhint: 'search' });
+  const status = h('p', { class: 'help', 'aria-live': 'polite' });
+  const list = h('ul', { class: 'list', hidden: true });
+  let timer, results = [];
+  const pick = async r => {
+    try {
+      status.textContent = 'Getting there...';
+      const pt = r.lat != null ? r : await api(`/api/place?id=${encodeURIComponent(r.id)}&session=${token}`);
+      onPick({ lat: pt.lat, lon: pt.lon, name: r.label, country: pt.country || '', town: pt.town || '' });
+    } catch (e) { status.textContent = e.message; }
+  };
+  const run = async () => {
+    const q = input.value.trim();
+    if (q.length < (live ? 2 : 3)) { results = []; list.hidden = true; status.textContent = live ? '' : 'Type at least 3 letters.'; return; }
+    status.textContent = 'Looking...';
+    try {
+      const qs = new URLSearchParams({ q, session: token, ...(near ? { lat: near[0], lon: near[1] } : {}) });
+      const j = await api('/api/places?' + qs);
+      if (input.value.trim() !== q) return;
+      results = j.results;
+      list.replaceChildren(...results.map(r => h('li', { role: 'presentation' },
+        h('button', { onclick: () => pick(r) }, h('b', {}, r.label), r.sub ? h('small', {}, r.sub) : null))));
+      list.hidden = !results.length;
+      status.textContent = results.length ? '' : 'Nothing by that name. Try adding the city, like "Sector 26 Gurugram".';
+    } catch (e) { status.textContent = e.message; }
+  };
+  if (live) input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 300); });
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (results.length && live) pick(results[0]); else run();
+  });
+  return h('div', { class: 'psearch' },
+    h('div', { class: 'row' }, input, live ? null : h('button', { class: 'btn ghost', style: 'flex:none', onclick: run }, 'Search')),
+    status, list);
+}
 
 /* --- step 4: where are you starting --- */
 // "24, South Johnson Park, Buffalo, ..." reads better as "24 South Johnson Park"
@@ -303,21 +351,11 @@ VIEWS.start = (app, bar) => {
     setBar(bar, { label: 'Next', onclick: () => go('vibe'), ok: !!S.stay, why: 'Pick a starting point to continue.' });
   };
   const pick = (name, lat, lon) => { S.stay = { name, lat, lon }; S.picks = {}; refresh(); };
-  const q = h('input', { type: 'search', placeholder: 'Hotel name or street address', 'aria-label': 'Hotel name or street address', autocomplete: 'off' });
-  const found = h('ul', { class: 'list', hidden: true });
-  const foundNote = h('p', { class: 'help', 'aria-live': 'polite' });
-  const search = async () => {
-    const text = q.value.trim();
-    if (text.length < 3) { foundNote.textContent = 'Type at least 3 letters.'; return; }
-    foundNote.textContent = 'Searching...';
-    try {
-      const j = await api(`/api/locate?q=${encodeURIComponent(text)}&lat=${S.city.lat}&lon=${S.city.lon}`);
-      found.replaceChildren(...j.results.map(r => h('li', { role: 'presentation' }, h('button', { onclick: () => { pick(shortAddress(r.label), r.lat, r.lon); found.hidden = true; } }, r.label))));
-      found.hidden = !j.results.length;
-      foundNote.textContent = j.results.length ? '' : 'Nothing found near ' + S.city.name + '. Try a neighborhood below.';
-    } catch (e) { foundNote.textContent = e.message; }
-  };
-  q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+  const finder = placeSearch({
+    near: [S.city.lat, S.city.lon],
+    placeholder: 'Hotel, street or neighborhood',
+    onPick: pt => pick(pt.name, pt.lat, pt.lon),
+  });
   const anchorBox = h('div', {});
   const paintAnchors = () => {
     anchorBox.replaceChildren();
@@ -335,11 +373,10 @@ VIEWS.start = (app, bar) => {
       .catch(e => { S.anchorErr = 'Could not load neighborhoods. Use the search box or the city center.'; paintAnchors(); });
   }
   put(app, h('h2', {}, 'Where are you staying or landing?'),
-    h('p', { class: 'lead' }, 'We build the route outward from here, so the first walk is short. Hotel, rental, train station, anywhere.'),
+    h('p', { class: 'lead' }, 'Every walk starts here, so the first one is short and the last one ends near bed.'),
     chosen,
-    h('h3', {}, 'Search a hotel or address'),
-    h('div', { class: 'row' }, q, h('button', { class: 'btn ghost', style: 'flex:none', onclick: search }, 'Search')),
-    foundNote, found,
+    h('h3', {}, 'Search a hotel, street or neighborhood'),
+    finder,
     anchorBox,
     h('h3', {}, 'Other ways'),
     h('div', { class: 'chips' },
@@ -353,7 +390,7 @@ VIEWS.start = (app, bar) => {
 
 /* --- step 5: vibe --- */
 VIEWS.vibe = (app, bar) => {
-  const vibes = [['dive', 'Dive', 'Cheap pitchers, sticky floors, no pretending.'], ['chill', 'Chill', 'Sit down, talk, keep the volume low.'], ['lively', 'Lively', 'Louder rooms, patios, a little more energy.']];
+  const vibes = [['dive', 'Dive', 'Cheap pitchers, sticky floors, nobody pretending.'], ['chill', 'Chill', 'Somewhere you can hear each other think.'], ['lively', 'Lively', 'Louder rooms, patios, a little chaos.']];
   const box = h('div', {});
   const paint = () => box.replaceChildren(...vibes.map(([k, t, d]) => h('button', { class: 'choice', 'aria-pressed': String(S.vibe === k), onclick: () => { S.vibe = k; paint(); } },
     h('div', { style: 'flex:1' }, h('b', {}, t), h('span', { class: 'd' }, d)), S.vibe === k ? h('b', {}, '✓') : null)));
@@ -362,7 +399,7 @@ VIEWS.vibe = (app, bar) => {
     const i = h('input', { type: 'checkbox', role: 'switch' }); i.checked = S[key]; i.addEventListener('change', () => { S[key] = i.checked; });
     return h('label', { class: 'switch' }, h('div', {}, h('b', {}, title), h('small', {}, desc)), i);
   };
-  put(app, h('h2', {}, "What's the mood?"), h('p', { class: 'lead' }, 'This shapes which kind of place we pick. You can swap any stop later.'),
+  put(app, h('h2', {}, "What's the mood?"), h('p', { class: 'lead' }, 'This decides the kind of place. You can swap any stop later, no hard feelings.'),
     box, h('h3', {}, 'Extras'),
     sw('live', 'Live music', 'Make one stop a place with a band, if the map lists one.'),
     sw('late', 'Late-night food', 'End with food that is confirmed open after the bars wind down.'),
@@ -371,7 +408,7 @@ VIEWS.vibe = (app, bar) => {
 };
 
 /* --- loading --- */
-const WAIT = ['Asking the map where the cheap beer is.', 'Crossing out anything with "craft cocktail" in the name.', 'Checking who is open.', 'Counting walking minutes.'];
+const WAIT = ['Asking the map where the cheap beer is.', 'Crossing out anything with "craft cocktail" in the name.', 'Ignoring the rooftop bar. You are welcome.', 'Checking who is actually open.', 'Doing the group math so nobody has to.', 'Counting walking minutes.'];
 VIEWS.loading = app => {
   const line = h('p', { class: 'lead', 'aria-live': 'polite' }, WAIT[0]);
   let i = 0; const t = setInterval(() => { if (!document.body.contains(line)) return clearInterval(t); line.textContent = WAIT[++i % WAIT.length]; }, 2200);
@@ -379,7 +416,7 @@ VIEWS.loading = app => {
 };
 
 VIEWS.error = (app, bar) => {
-  put(app, h('h2', {}, 'That did not work'), h('p', { class: 'err', role: 'alert' }, S.error || 'Try again.'));
+  put(app, h('h2', {}, 'Well, that did not work'), h('p', { class: 'err', role: 'alert' }, S.error || 'Try again.'));
   setBar(bar, { label: 'Try again', onclick: buildPlan, ok: true, extra: h('button', { class: 'btn ghost', onclick: () => go('vibe') }, 'Change answers') });
 };
 
@@ -437,17 +474,29 @@ const mapsUrl = (p, city) => p.gmaps || 'https://www.google.com/maps/search/?api
 const redditUrl = (p, city) => 'https://www.reddit.com/search/?q=' + encodeURIComponent(`${p.name} ${city} happy hour`);
 const money0 = n => fmtMoney(n, (S.plan && S.plan.currency) || cityCur());
 
-function placeTags(p, state, openLabel = 'Open then') {
+// one line that answers "is it worth the walk": price, stars, open
+function summaryLine(costText, p, state, openLabel) {
+  const bits = [h('span', { class: 'price' }, costText)];
+  if (p.rating != null && p.rating_count >= 15) bits.push(h('span', { class: 'stars' }, icon('star'), p.rating.toFixed(1), h('span', { class: 'muted' }, ` (${shortCount(p.rating_count)})`)));
+  if (state === true) bits.push(h('span', { class: 'open' }, openLabel));
+  else if (state === null || state === undefined) bits.push(h('span', { class: 'muted' }, 'Hours unconfirmed'));
+  return h('div', { class: 'sumline' }, ...bits.flatMap((b, k) => k ? [h('span', { class: 'dot', 'aria-hidden': 'true' }, '·'), b] : [b]));
+}
+function smallTags(p) {
   const t = [];
-  if (state === true) t.push(h('span', { class: 'tag good' }, openLabel));
-  else if (state === null || state === undefined) t.push(h('span', { class: 'tag' }, 'Hours unconfirmed'));
-  if (p.rating != null && p.rating_count >= 15) t.push(h('span', { class: 'tag' }, `${p.rating.toFixed(1)} stars, ${p.rating_count} reviews`));
   if (p.happy_hint) t.push(h('span', { class: 'tag accent' }, 'Happy hour listed'));
   if (p.live_music) t.push(h('span', { class: 'tag' }, 'Live music'));
   if (p.outdoor_seating) t.push(h('span', { class: 'tag' }, 'Patio'));
   if (p.no_cover) t.push(h('span', { class: 'tag good' }, 'No cover listed'));
   else if (p.ticketed) t.push(h('span', { class: 'tag warn' }, 'May have a cover'));
-  return t;
+  return t.length ? h('div', { class: 'tags' }, ...t) : null;
+}
+function linkRow(p, city, onDeal, first) {
+  return h('div', { class: 'links' },
+    first || null,
+    h('a', { class: 'lnk', href: mapsUrl(p, city), target: '_blank', rel: 'noopener' }, icon('map'), 'Map'),
+    h('a', { class: 'lnk', href: redditUrl(p, city), target: '_blank', rel: 'noopener' }, icon('chat'), 'Reddit'),
+    h('button', { class: 'lnk', onclick: () => addDealSheet(p, onDeal) }, icon('plus'), 'Deal'));
 }
 
 function dealRows(p, deals) {
@@ -462,12 +511,12 @@ function addDealSheet(p, onAdded) {
     const w = h('input', { type: 'text', maxlength: 40, placeholder: 'When? Tue all night, Mon to Fri 4 to 7' });
     const err = h('p', { class: 'help', role: 'alert' });
     return h('div', {},
-      h('p', { class: 'lead' }, 'Know a real deal? Add it for the next group. No links, please. Deals stay for six months.'),
+      h('p', { class: 'lead' }, 'Know a real deal? Leave it for the next group. Plain words, no links. Deals stay for six months.'),
       h('label', { class: 'field' }, h('span', {}, 'The deal'), t),
       h('label', { class: 'field' }, h('span', {}, 'When (optional)'), w), err,
       h('div', { class: 'row' }, h('button', { class: 'btn ghost', onclick: close }, 'Cancel'),
         h('button', { class: 'btn primary', onclick: async () => {
-          try { const j = await post('/api/deals', { place_id: p.id, place_name: p.name, text: t.value, when: w.value }); onAdded(j.deal); close(); toast('Added. Thanks for helping the next group.'); }
+          try { const j = await post('/api/deals', { place_id: p.id, place_name: p.name, text: t.value, when: w.value }); onAdded(j.deal); close(); toast('Added. The next thirsty stranger thanks you.'); }
           catch (e) { err.textContent = e.message; }
         } }, 'Add deal')));
   });
@@ -498,23 +547,21 @@ VIEWS.plan = (app, bar) => {
     const p = s.place;
     put(tl, h('div', { class: 'stop' }, h('div', { class: 't' }, s.time),
       h('div', { class: 'body' }, h('span', { class: 'num', 'aria-hidden': 'true' }, i + 1),
-        h('div', { class: 'card' },
-          h('span', { class: 'tag' }, s.label),
+        h('div', { class: 'card place' },
+          h('span', { class: 'slot' }, h('span', { class: 'slot-time' }, s.time + ' · '), s.label),
           h('h4', {}, p.name),
-          h('div', { class: 'meta' }, h('span', { class: 'tag' }, '~' + money0(s.cost) + ' each (est.)'), placeTags(p, s.open)),
-          p.address ? h('div', { class: 'help' }, p.address) : null,
+          summaryLine('~' + money0(s.cost) + ' each', p, s.open, 'Open then'),
+          smallTags(p),
+          p.address ? h('div', { class: 'addr' }, p.address) : null,
           p.happy_hint ? h('div', { class: 'help' }, 'Map says: ' + p.happy_hint) : null,
           h('p', { class: 'line-voice' }, s.line),
           dealRows(p, s.deals),
-          s.long_walk ? h('p', { class: 'help' }, 'Longer walk than usual. The map has few cheap options closer.') : null,
-          h('div', { class: 'acts' },
-            h('button', { class: 'btn small ghost', onclick: () => doSwap(i) }, 'Swap this stop'),
-            h('a', { class: 'btn small line', href: mapsUrl(p, city), target: '_blank', rel: 'noopener' }, 'Map'),
-            h('a', { class: 'btn small line', href: redditUrl(p, city), target: '_blank', rel: 'noopener' }, 'Check Reddit'),
-            h('button', { class: 'btn small line', onclick: () => addDealSheet(p, d => { s.deals = [...(s.deals || []), d]; render(); }) }, 'Add a deal'))))));
+          s.long_walk ? h('p', { class: 'help' }, 'Longer walk than usual. The cheap places nearby all had other plans.') : null,
+          linkRow(p, city, d => { s.deals = [...(s.deals || []), d]; render(); },
+            h('button', { class: 'lnk strong', onclick: () => doSwap(i) }, icon('swap'), 'Swap'))))));
   });
-  if (!n.stops.length) put(tl, h('div', { class: 'notice' }, h('h5', {}, 'No stops found'), 'The map has nothing cheap here for these filters. Try searching wider or turning off an extra.'));
-  if (n.home) put(tl, h('div', { class: 'walk' }, h('span', {}), h('div', {}, 'Back to ', h('b', {}, P.stay.name || 'your start'), `: ${n.home.min} min on foot. ${n.home.min > 25 ? 'That is far. Book a ride.' : 'Or book a ride before the last round.'}`)));
+  if (!n.stops.length) put(tl, h('div', { class: 'notice' }, h('h5', {}, 'No stops found'), 'Nothing cheap fits these filters around here. Search wider or drop an extra.'));
+  if (n.home) put(tl, h('div', { class: 'walk' }, h('span', {}), h('div', {}, 'Back to ', h('b', {}, P.stay.name || 'your start'), `: ${n.home.min} min on foot. ${n.home.min > 25 ? 'That is a hike. Book a ride.' : 'Or book a ride before the last round, while you can still spell the address.'}`)));
 
   put(app, 
     h('h2', {}, `${city}, ${fmtDay(dateObj)}`),
@@ -539,7 +586,7 @@ async function doSwap(i) {
   const n = S.plan.nights[S.night]; const st = n.stops[i];
   const used = new Set(n.stops.filter((_, k) => k !== i).map(x => x.place.id));
   const j = (st.alternatives || []).findIndex(a => !used.has(a.place.id));
-  if (j < 0) { toast('No other cheap options nearby for this stop.'); return; }
+  if (j < 0) { toast('That is every cheap option near this stop. It was this or nothing.'); return; }
   const before = JSON.stringify(n.stops);
   const lapped = (st.tried || []).includes(st.alternatives[j].place.id);
   swapTo(n, i, j);
@@ -554,10 +601,10 @@ async function widen() { S.radius = Math.min(4000, S.radius + 1000); await build
 
 async function copyPlan() {
   const text = S.plan.text;
-  try { await navigator.clipboard.writeText(text); toast('Copied. Paste it in the group chat.'); }
+  try { await navigator.clipboard.writeText(text); toast('Copied. Paste it in the group chat and wait for the thumbs.'); }
   catch (e) {
     const ta = h('textarea', { style: 'position:fixed;opacity:0' }, text); document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); toast('Copied. Paste it in the group chat.'); } catch (x) { toast('Could not copy. Long-press the text instead.'); }
+    try { document.execCommand('copy'); toast('Copied. Paste it in the group chat and wait for the thumbs.'); } catch (x) { toast('Could not copy. Long-press the text instead.'); }
     ta.remove();
   }
 }
@@ -569,14 +616,14 @@ async function downloadIcs() {
     const url = URL.createObjectURL(await r.blob());
     const a = h('a', { href: url, download: 'drink-and-walk.ics' }); document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    toast('Calendar file saved. Open it to add every stop.');
+    toast('Calendar file saved. Future you has been warned.');
   } catch (e) { toast(e.message); }
 }
 function shareLink() {
   const data = { c: S.city, s: S.start, e: S.end, p: S.people, b: S.budget, st: S.stay, v: S.vibe, l: S.live, la: S.late, f: S.free, r: S.radius, k: S.picks };
   const url = location.origin + location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
   if (navigator.share) navigator.share({ title: 'Drink and Walk', text: 'Our cheap night out', url }).catch(() => {});
-  else navigator.clipboard.writeText(url).then(() => toast('Link copied. It rebuilds this plan for anyone who opens it.'), () => toast(url));
+  else navigator.clipboard.writeText(url).then(() => toast('Link copied. Anyone who opens it gets the same night, minus the hangover.'), () => toast(url));
 }
 function restoreFromHash() {
   const m = location.hash.match(/^#p=(.+)$/); if (!m) return false;
@@ -615,31 +662,35 @@ async function loadNearby(at, where) {
   if (S.step === 'nearby') render();
 }
 VIEWS.nearby = app => {
-  const modes = [['drink', 'Cheap drinks'], ['eat', 'Cheap food'], ['music', 'Live music'], ['free', 'Free-ish'], ['late', 'Late food']];
+  const modes = [['drink', '🍺', 'Cheap drinks'], ['eat', '🌮', 'Cheap eats'], ['music', '🎸', 'Live music'], ['free', '🎟️', 'Free-ish'], ['late', '🌙', 'Late food']];
   const city = S.near.cityName; // never an older plan's city
-  put(app, h('h2', {}, 'Cheap and open near you'),
-    h('div', { class: 'row', style: 'align-items:center;flex-wrap:wrap;gap:8px' },
-      h('p', { class: 'lead', style: 'margin:0;flex:1 1 auto' }, S.near.where === 'Finding you...' ? S.near.where : 'Near: ' + (S.near.where || 'you')),
-      h('button', { class: 'btn small line', style: 'flex:none', onclick: useMyLocation }, 'Use my location'),
-      h('button', { class: 'btn small line', style: 'flex:none', onclick: () => go('nearcity') }, 'Change place')),
-    h('div', { class: 'chips', role: 'group', 'aria-label': 'What are you after' }, ...modes.map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': String(S.near.mode === k), onclick: () => { S.near.mode = k; loadNearby(); } }, t))));
+  const finding = S.near.where === 'Finding you...';
+  app.classList.add('near');
+  put(app, h('h2', {}, 'Open, cheap, close by'),
+    h('div', { class: 'where' },
+      icon('pin'),
+      h('span', { class: 'where-text' }, finding ? 'Finding you. Act natural.' : (S.near.where === 'your location' ? 'Your location' : S.near.where || 'Somewhere')),
+      h('button', { class: 'lnk', onclick: useMyLocation }, icon('locate'), 'Locate me'),
+      h('button', { class: 'lnk', onclick: () => go('nearcity') }, 'Change')),
+    h('div', { class: 'chips scroll', role: 'group', 'aria-label': 'What are you after' }, ...modes.map(([k, e, t]) =>
+      h('button', { class: 'chip', 'aria-pressed': String(S.near.mode === k), onclick: () => { S.near.mode = k; loadNearby(); } }, h('span', { 'aria-hidden': 'true' }, e), ' ' + t))));
   if (S.near.err) { put(app, h('p', { class: 'err', role: 'alert' }, S.near.err), h('button', { class: 'btn ghost', onclick: () => loadNearby() }, 'Try again')); }
   else if (!S.near.results) { put(app, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); }
   else if (!S.near.results.length) {
-    put(app, h('div', { class: 'notice' }, h('h5', {}, 'Nothing cheap and open within walking distance'), `The map knows ${S.near.known} places here. Try another filter, or walk toward a busier street.`));
+    put(app, h('div', { class: 'notice' }, h('h5', {}, 'Nothing cheap and open within walking distance'),
+      `The map knows ${S.near.known} places around here, and none of them fit. Try another mood, or walk toward the noise.`));
   } else {
-    put(app, h('div', { style: 'margin-top:14px' }, ...S.near.results.map(r => {
+    put(app, h('p', { class: 'count' }, `${S.near.results.length} ${S.near.results.length === 1 ? 'place' : 'places'}, closest and best value first.`),
+      h('div', { class: 'list-cards' }, ...S.near.results.map(r => {
       const p = r.place;
-      return h('div', { class: 'card', style: 'margin-bottom:12px' },
-        h('div', { class: 'meta' }, h('span', { class: 'tag accent' }, r.walk.min <= 1 ? 'Right here' : r.walk.min + ' min walk'), h('span', { class: 'tag' }, '~' + fmtMoney(r.cost, S.near.currency || USD) + ' each (est.)'), placeTags(p, r.open, 'Open now')),
-        h('h4', { style: 'margin:4px 0;font-size:19px' }, p.name),
-        p.address ? h('div', { class: 'help' }, p.address) : null,
-        p.happy_hint ? h('div', { class: 'help' }, 'Map says: ' + p.happy_hint) : null,
+      return h('article', { class: 'card place' },
+        h('div', { class: 'place-top' }, h('h4', {}, p.name), h('span', { class: 'walkpill' }, r.walk.min <= 1 ? 'Here' : r.walk.min + ' min')),
+        summaryLine('~' + fmtMoney(r.cost, S.near.currency || USD), p, r.open, 'Open now'),
+        smallTags(p),
+        r.line ? h('p', { class: 'line-voice' }, r.line) : null,
+        p.address ? h('div', { class: 'addr' }, p.address) : null,
         dealRows(p, r.deals),
-        h('div', { class: 'acts' },
-          h('a', { class: 'btn small ghost', href: mapsUrl(p, city), target: '_blank', rel: 'noopener' }, 'Map'),
-          h('a', { class: 'btn small line', href: redditUrl(p, city), target: '_blank', rel: 'noopener' }, 'Check Reddit'),
-          h('button', { class: 'btn small line', onclick: () => addDealSheet(p, d => { r.deals = [...(r.deals || []), d]; render(); }) }, 'Add a deal')));
+        linkRow(p, city, d => { r.deals = [...(r.deals || []), d]; render(); }));
     })));
   }
   put(app, credits(S.near.google));

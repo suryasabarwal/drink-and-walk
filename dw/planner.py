@@ -392,6 +392,7 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
             "open": state,
             "walk": {"min": geo.walk_minutes(dist), "label": geo.walk_km_label(dist), "m": round(dist)},
             "deals": deals.get(p["id"], []),
+            "line": voice.pick("near_" + mode, p["id"]),
         }
         for _, p, dist, state in out[:limit]
     ]

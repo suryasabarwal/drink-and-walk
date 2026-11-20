@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from collections import defaultdict, deque
 from datetime import date, timedelta
@@ -85,6 +86,34 @@ def cities():
 def locate():
     lat, lon = _float("lat", -90, 90), _float("lon", -180, 180)
     return jsonify(results=geocode.locate(request.args.get("q", ""), lat, lon))
+
+
+@app.get("/api/places")
+@limited("places", 60)
+def place_search():
+    """Suggestions for a spot: neighborhood, sector, street, hotel or city, anywhere.
+    Google suggests while typing; without a key, OpenStreetMap answers on submit."""
+    q = request.args.get("q", "")
+    near = None
+    if request.args.get("lat") and request.args.get("lon"):
+        near = (_float("lat", -90, 90), _float("lon", -180, 180))
+    if google_places.enabled():
+        try:
+            return jsonify(results=google_places.autocomplete(q, request.args.get("session", ""), near), live=True)
+        except SourceDown:
+            pass  # fall through to the open map
+    return jsonify(results=geocode.find_place(q), live=False)
+
+
+@app.get("/api/place")
+@limited("place", 30)
+def place_pick():
+    pid = request.args.get("id", "")
+    if not google_places.enabled() or not re.fullmatch(r"[A-Za-z0-9_-]{6,200}", pid):
+        raise ValueError("unknown place")
+    pt = google_places.place_point(pid, request.args.get("session", ""))
+    cur = money.for_country(pt["country"]) or money.USD
+    return jsonify(**pt, currency=cur.as_dict())
 
 
 @app.get("/api/anchors")

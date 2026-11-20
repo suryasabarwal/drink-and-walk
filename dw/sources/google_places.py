@@ -262,3 +262,70 @@ def places_near(lat: float, lon: float, radius: int, want_live: bool = False, wa
     if failures:
         meta["warning"] = failures[0]
     return merge_duplicates(out), meta
+
+
+# ---- finding a spot: "DLF Phase 1", "Sector 26 Gurugram", "Vasant Vihar" ---------------------
+# Place Autocomplete (New) suggests neighborhoods, streets, hotels and landmarks as you type; one
+# details call then gives the point and its country. Both are part of Places API (New) and have
+# their own free monthly allowance; a session token ties the typing and the pick together.
+AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
+DETAILS_URL = "https://places.googleapis.com/v1/places/"
+
+
+def autocomplete(query: str, session_token: str = "", near: tuple[float, float] | None = None) -> list[dict[str, Any]]:
+    q = (query or "").strip()[:100]
+    if len(q) < 2:
+        return []
+    if not take_quota("google_ac", config.GOOGLE_AC_DAILY_LIMIT):
+        raise SourceDown("google: daily search budget used up")
+    body: dict[str, Any] = {"input": q}
+    if session_token:
+        body["sessionToken"] = session_token[:64]
+    if near:
+        body["locationBias"] = {"circle": {"center": {"latitude": near[0], "longitude": near[1]}, "radius": 30000.0}}
+    try:
+        r = session.post(AUTOCOMPLETE_URL, json=body, timeout=config.HTTP_TIMEOUT, headers={"X-Goog-Api-Key": config.GOOGLE_PLACES_KEY})
+    except OSError as exc:
+        raise SourceDown(f"google: {type(exc).__name__}") from exc
+    if r.status_code != 200:
+        raise SourceDown(f"google answered {r.status_code}")
+    out = []
+    for s in (r.json().get("suggestions") or [])[:6]:
+        pp = s.get("placePrediction") or {}
+        sf = pp.get("structuredFormat") or {}
+        main = ((sf.get("mainText") or {}).get("text") or (pp.get("text") or {}).get("text") or "").strip()
+        if pp.get("placeId") and main:
+            out.append({"id": pp["placeId"][:200], "label": main[:100], "sub": ((sf.get("secondaryText") or {}).get("text") or "")[:140]})
+    return out
+
+
+def place_point(place_id: str, session_token: str = "") -> dict[str, Any]:
+    """The point, name, country and town for a picked suggestion."""
+    if not take_quota("google_ac", config.GOOGLE_AC_DAILY_LIMIT):
+        raise SourceDown("google: daily search budget used up")
+    params = {"sessionToken": session_token[:64]} if session_token else {}
+    try:
+        r = session.get(DETAILS_URL + place_id, params=params, timeout=config.HTTP_TIMEOUT,
+                        headers={"X-Goog-Api-Key": config.GOOGLE_PLACES_KEY,
+                                 "X-Goog-FieldMask": "id,displayName,location,addressComponents"})
+    except OSError as exc:
+        raise SourceDown(f"google: {type(exc).__name__}") from exc
+    if r.status_code != 200:
+        raise SourceDown(f"google answered {r.status_code}")
+    g = r.json()
+    loc = g.get("location") or {}
+    if "latitude" not in loc:
+        raise SourceDown("google: no location for that place")
+    comps = g.get("addressComponents") or []
+    def part(*kinds):
+        for c in comps:
+            if any(k in (c.get("types") or []) for k in kinds):
+                return c
+        return {}
+    return {
+        "lat": float(loc["latitude"]),
+        "lon": float(loc["longitude"]),
+        "name": ((g.get("displayName") or {}).get("text") or "")[:80],
+        "country": (part("country").get("shortText") or "")[:2].upper(),
+        "town": (part("locality", "postal_town", "administrative_area_level_2").get("longText") or "")[:60],
+    }

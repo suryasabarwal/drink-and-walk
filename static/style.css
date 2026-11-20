@@ -3,7 +3,8 @@
   --text: #1d1a16; --muted: #6b645a; --accent: #f5a524; --accent-text: #231600;
   --good: #1c8a4a; --good-bg: #e3f4ea; --warn: #9a5b00; --warn-bg: #fff1d6; --bad: #b3261e; --bad-bg: #fde8e6;
   --info-bg: #e8eef9; --info: #274a8a; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 18px rgba(0,0,0,.06);
-  --radius: 16px;
+  --radius: 20px;
+  --display: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -160,3 +161,91 @@ input[type=range] { width: 100%; height: 44px; accent-color: var(--accent); }
 .stop .t { padding-right: 22px; white-space: nowrap; }
 .acts { display: grid; grid-template-columns: 1fr 1fr; }
 .acts .btn { width: 100%; padding: 0 8px; }
+
+
+/* ---------- 2026 refresh ---------- */
+h1, h2, .brand, .big-n, .money, .stepper output, .choice b { font-family: var(--display); }
+h1 { font-weight: 800; font-size: 34px; letter-spacing: -.03em; line-height: 1.05; margin: 4px 0 12px; }
+h2 { font-weight: 800; font-size: 28px; letter-spacing: -.025em; line-height: 1.1; margin: 4px 0 12px; }
+@media (min-width: 560px) { h1 { font-size: 44px; } h2 { font-size: 32px; } }
+.kicker { margin: 6px 0 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.lead { font-size: 17px; }
+.ico { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; }
+.ico svg { width: 100%; height: 100%; }
+
+/* home choices */
+.choice { border-width: 1.5px; transition: transform .12s ease, border-color .12s ease; }
+.choice:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.choice:active { transform: scale(.99); }
+.choice .tile { flex: none; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-size: 26px; background: var(--surface2); }
+.choice.hero { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--surface)), var(--surface) 70%); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.choice.hero .tile { background: var(--accent); }
+.choice b { font-size: 19px; letter-spacing: -.01em; }
+
+/* where you are: one tidy row, never wraps into the chips */
+.where { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; margin: 0 0 12px; border-radius: 14px; background: var(--surface); border: 1.5px solid var(--line); min-height: 48px; }
+.where > .ico { color: var(--accent); }
+.where-text { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* small link buttons used across cards and bars */
+.lnk { appearance: none; border: 0; background: var(--surface2); color: var(--text); border-radius: 10px; min-height: 36px; padding: 0 11px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; flex: none; }
+.lnk .ico { width: 16px; height: 16px; }
+.lnk:hover { background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); }
+.lnk.strong { background: var(--accent); color: var(--accent-text); }
+
+/* mood chips: one row that scrolls sideways */
+.chips.scroll { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 4px; padding: 2px 16px 8px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.chips.scroll::-webkit-scrollbar { display: none; }
+.chips.scroll .chip { flex: none; scroll-snap-align: start; min-height: 40px; padding: 0 14px; font-size: 15px; }
+
+/* compact place cards: three or four per phone screen */
+.count { color: var(--muted); font-size: 14px; margin: 8px 0 10px; }
+.list-cards { display: grid; gap: 10px; }
+.card.place { padding: 14px 14px 12px; box-shadow: none; }
+.place-top { display: flex; align-items: flex-start; gap: 10px; }
+.place h4 { margin: 0; font-size: 18px; line-height: 1.25; letter-spacing: -.01em; flex: 1; min-width: 0; }
+.stop .place h4 { margin: 4px 0 2px; }
+.walkpill { flex: none; background: var(--accent); color: var(--accent-text); font-weight: 800; font-size: 13px; border-radius: 999px; padding: 4px 10px; }
+.slot { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.sumline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 15px; }
+.sumline .price { font-weight: 800; }
+.sumline .stars { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; }
+.sumline .stars .ico { width: 15px; height: 15px; color: var(--accent); }
+.sumline .stars .ico svg { fill: currentColor; }
+.sumline .open { color: var(--good); font-weight: 700; }
+.sumline .muted, .sumline .dot { color: var(--muted); font-weight: 500; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.addr { color: var(--muted); font-size: 13px; margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place .line-voice { margin: 8px 0 0; font-size: 14px; }
+.links { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.links::-webkit-scrollbar { display: none; }
+.how .n { background: var(--accent); color: var(--accent-text); }
+
+/* plan timeline: no overflow on phones; the time moves into the card */
+.stop, .walk { grid-template-columns: 78px minmax(0, 1fr); }
+.stop .body { min-width: 0; }
+.slot-time { display: none; }
+@media (max-width: 559px) {
+  .stop, .walk { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .stop .t, .stop .num, .walk > span { display: none; }
+  .stop .card { margin-left: 0; }
+  .walk div { margin-left: 18px; }
+  .slot-time { display: inline; }
+}
+
+/* denser "I'm out right now" so three or four places fit on a phone screen */
+.near h2 { font-size: 24px; margin-bottom: 10px; }
+.card.place { padding: 12px 12px 10px; }
+.place h4 { font-size: 17px; }
+.sumline { margin-top: 4px; font-size: 14px; }
+.tags { margin-top: 6px; }
+.tags .tag { font-size: 11px; padding: 2px 8px; }
+.place .line-voice { margin-top: 6px; font-size: 13px; line-height: 1.35; }
+.addr { margin-top: 4px; font-size: 12px; }
+.links { margin-top: 8px; }
+.lnk { min-height: 34px; font-size: 13px; padding: 0 10px; }
+.list-cards { gap: 8px; }
+.count { margin: 4px 0 8px; font-size: 13px; }
+.where { min-height: 44px; margin-bottom: 10px; }
+.chips.scroll { margin: 0 0 4px; padding: 2px 0 8px; }
+.psearch .list b { display: block; font-weight: 700; }
