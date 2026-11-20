@@ -63,7 +63,7 @@ SLOT_LABELS = {
 }
 
 UI = {
-    "tagline": "A cheap night out for friends splitting the bill.",
+    "tagline": "Cheap bars and food that are open now, a short walk away.",
     "sub": "Pick a city and where you're starting. We build a walking route of cheap food, happy hours and live music.",
     "safety_title": "Before you head out",
     "safety": [

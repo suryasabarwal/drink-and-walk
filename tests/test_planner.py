@@ -219,3 +219,13 @@ def test_main_stop_picks_the_cheaper_bar_when_the_close_one_breaks_the_budget():
     assert s(near_cheap) > s(close_dear)
     ctx["budget"] = 200  # plenty of room: the close one is fine
     assert s(close_dear) > s(near_cheap) - 0.5
+
+
+def test_out_right_now_leaves_out_badly_rated_places():
+    from dw import planner
+    def bar(i, rating):
+        return {"id": f"n{i}", "name": f"Bar {i}", "lat": 0.0, "lon": 0.0, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "rating": rating, "rating_count": 80, "hours_week": [[[0, 1680]]] * 7,
+                "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
+    got = [r["place"]["id"] for r in planner.nearby([bar(1, 4.5), bar(2, 3.1)], 0.0, 0.0, 4, 21 * 60, "drink", {})]
+    assert got == ["n1"]

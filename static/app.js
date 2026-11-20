@@ -114,18 +114,18 @@ function sheet(title, content) {
 const VIEWS = {};
 
 VIEWS.home = app => {
-  put(app, 
-    h('h1', {}, 'Plan a cheap night out.'),
-    h('p', { class: 'lead' }, 'A cheap night out for friends splitting the bill. Pick a city and where you are starting. We build a walking route of cheap food, happy hours and live music.'),
-    h('button', { class: 'choice big', onclick: () => { S.flow = 'plan'; go('city'); } },
-      h('div', {}, h('b', {}, 'Plan a trip'), h('span', { class: 'd' }, 'Pick a city, dates and a starting point. Five quick questions.'))),
+  put(app,
+    h('h1', {}, "What's open near me, right now."),
+    h('p', { class: 'lead' }, 'For the hour after work in a city you do not know yet. Cheap bars and food that are open now, a short walk away, with ratings and walking times.'),
     h('button', { class: 'choice big', onclick: startNearby },
-      h('div', {}, h('b', {}, "I'm out right now"), h('span', { class: 'd' }, "Skip the planning. See what's cheap and open within walking distance."))),
+      h('div', {}, h('b', {}, "I'm out right now"), h('span', { class: 'd' }, 'Cheap drinks, food, live music or late food, open now and close by.'))),
+    h('button', { class: 'choice big', onclick: () => { S.flow = 'plan'; go('city'); } },
+      h('div', {}, h('b', {}, 'Plan a night with friends'), h('span', { class: 'd' }, 'A walking route for up to four nights, with a budget and a running cost. Five quick questions.'))),
     h('div', { class: 'how' },
       h('h3', {}, 'How it works'),
-      ...[['1', 'Tell us the city, dates, how many of you and your budget.'],
-          ['2', 'Tell us where you are staying or landing, so every walk starts from there.'],
-          ['3', 'Get a route with cheap stops in order, walking times, and a running total. Swap anything you do not like.']]
+      ...[['1', "Tap I'm out right now and share your location, or pick the city."],
+          ['2', 'Choose what you are after: drinks, food, live music or late food.'],
+          ['3', 'Get the closest cheap places that are open now, with the walk, a price estimate and the rating.']]
         .map(([n, t]) => h('div', {}, h('span', { class: 'n' }, n), h('span', {}, t)))),
     credits(),
   );

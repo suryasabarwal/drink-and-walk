@@ -4,9 +4,9 @@
 
 ![Drink and Walk home screen](docs/home.png)
 
-A cheap night out for friends splitting the bill. Pick a city, dates, group size, a budget and
-where you are staying. Drink and Walk builds a walking route of cheap food, happy hours and live
-music, in order, with walking times and a running cost.
+What's open near me, right now? Drink and Walk shows the closest cheap bars and food that are open
+now, with the walk, a price estimate and the rating, in local money wherever you are. For nights
+with friends, it also plans a walking route with a budget and a running cost.
 
 No accounts and no database. It runs on free OpenStreetMap data out of the box, and a Google Places
 key (free monthly allowance) adds real prices, opening hours and ratings.
@@ -28,22 +28,32 @@ out of the same idea, for nights when friends come along and someone has to plan
 
 ## What it does
 
-- **Step-by-step flow.** One question per screen: city, dates, group and budget, starting point, mood.
+### I'm out right now
+
+- **Open now, close by.** Cheap places within a short walk that are open for at least the next half
+  hour, closest and best value first. Places whose hours can't be read say "Hours unconfirmed".
+- **Pick what you're after.** Cheap drinks, cheap food, live music, free-ish, or late food that is
+  confirmed open late tonight.
+- **A snapshot per place.** Walking time, a price estimate in local money, rating and review count,
+  patio and live music tags, plus **Map** and **Check Reddit** links.
+- **Cheap by design.** Cocktail lounges, rooftop, wine and hotel bars are left out, and so are places
+  rated under 3.5 stars.
+
+### Plan a night with friends
+
+- **Step-by-step flow.** One question per screen: city, dates (up to four nights), group and budget,
+  starting point, mood.
 - **Starts from where you sleep.** Hotel or address search, neighborhoods, train and bus stations,
   your location, or the city center. Every walk is measured from there.
-- **Cheap by design.** Cocktail lounges, rooftop bars and wine bars are filtered out. Prices are
-  estimates from the type of place, and the app labels them that way.
-- **Walking order.** Each stop is chosen close to the one before, so you do not zigzag.
-- **Swap this stop.** One tap brings the next best cheap option and updates walking times and costs.
-  Undo is one tap too.
-- **Budget meter.** If the night runs over your limit, the last round is dropped first and the app says so.
-- **I'm out right now.** Skips planning. Shows cheap places open within walking distance.
 - **Vibe dials.** Dive, chill or lively, plus live music, late-night food and free-stuff-only toggles.
+- **Walking order.** Each stop is close to the one before, and the last round lands on the way home.
+- **Swap this stop.** Up to ten cheap options per stop, never repeated within a night. Undo is one tap.
+- **Budget meter.** Picks stay inside your limit where they can. If the night still runs over, the
+  last round is dropped first and the app says so.
 - **Heads-up banners.** US holidays and long weekends, weekend pricing, rain, cold and heat.
 - **Copy as text, add to calendar (.ics), share link.**
 - **Deal board.** Visitors can add deals the map cannot know, like "$3 pints Tuesday".
   Deals show their age, can be reported as gone, and expire after six months.
-- **Check Reddit** and **Map** links on every stop.
 
 ## Where the data comes from
 

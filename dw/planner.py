@@ -372,7 +372,7 @@ def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, 
             continue
         if mode == "late" and a not in FOOD_ROLE:
             continue
-        if p["price"]["tier"] == "pricey":
+        if p["price"]["tier"] == "pricey" or _low_rated(p):
             continue
         dist = geo.haversine_m(lat, lon, p["lat"], p["lon"])
         if dist > radius:
