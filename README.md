@@ -64,6 +64,7 @@ out of the same idea, for nights when friends come along and someone has to plan
 | Bars, pubs, food, hours (fallback) | OpenStreetMap via Overpass API | Free, no key |
 | Hotel or address search | Nominatim (OpenStreetMap) | Free, 1 request a second |
 | Weather | Open-Meteo forecast (about 16 days) | Free, no key |
+| Weather (backup) | MET Norway forecast (about 9 days) | Free, no key |
 | Concerts and festivals | Ticketmaster Discovery | Free key, optional |
 | Deals | Visitors, stored in `data/deals.json` | Free |
 

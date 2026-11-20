@@ -138,6 +138,8 @@ function credits(google) {
     h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, 'OpenStreetMap contributors'),
     '. Weather from ',
     h('a', { href: 'https://open-meteo.com/', target: '_blank', rel: 'noopener' }, 'Open-Meteo'),
+    ' and ',
+    h('a', { href: 'https://www.met.no/en', target: '_blank', rel: 'noopener' }, 'MET Norway'),
     '. Prices are estimates, so call or check the menu before you go. We do not store your location.');
 }
 
