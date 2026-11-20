@@ -92,3 +92,20 @@ def test_open_ended_google_range_says_or_more():
     assert p["price"]["basis"] == "Google says people usually spend ₹2,000 or more" and p["price"]["tier"] == "pricey"
     brewpub = G.normalize(g(4, "Test Brewpub", "bar", ["bar", "brewpub"], (800, 2000), level="PRICE_LEVEL_MODERATE", cur="INR"), india)
     assert brewpub["price"]["tier"] != "pricey"   # a ₹800 to ₹2,000 brewpub is a normal night in Gurugram
+
+
+def test_spend_range_decides_before_googles_dollar_signs():
+    india = money.for_country("IN")
+    # Google says $$$, but people spend ₹800 to ₹2,000: a normal brewpub night, so it stays
+    brewpub = G.normalize(g(5, "Test Barrel Brewpub", "bar", ["bar"], (800, 2000), level="PRICE_LEVEL_EXPENSIVE", cur="INR"), india)
+    assert brewpub["price"]["tier"] == "ok"
+    # no range: Google's $$$ decides
+    no_range = G.normalize(g(6, "No Range Bar", "bar", ["bar"], level="PRICE_LEVEL_EXPENSIVE"), india)
+    assert no_range["price"]["tier"] == "pricey"
+    # Google says $, but people spend ₹2,000 or more: the spend decides
+    cheap_label = g(7, "Cheap Label Bar", "bar", ["bar"], level="PRICE_LEVEL_INEXPENSIVE")
+    cheap_label["priceRange"] = {"startPrice": {"currencyCode": "INR", "units": "2000"}}
+    assert G.normalize(cheap_label, india)["price"]["tier"] == "pricey"
+    # a cocktail bar stays out whatever the spend
+    cocktail = G.normalize(g(8, "Test Cocktail Room", "cocktail_bar", ["cocktail_bar", "bar"], (400, 800), cur="INR"), india)
+    assert cocktail["price"]["tier"] == "pricey"

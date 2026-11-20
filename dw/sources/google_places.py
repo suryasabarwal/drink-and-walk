@@ -129,11 +129,13 @@ def _price(g: dict[str, Any], amenity: str, name: str, cuisine: str, types: set[
         spend = (f"{money.fmt_local(lo_l, cur)} or more" if open_ended
                  else f"{money.fmt_local(lo_l, cur)} to {money.fmt_local(hi_l, cur)}")
         p.update(low=low, high=high, mid=round((low + high) / 2), basis=f"Google says people usually spend {spend}")
-        tier = tier or ("cheap" if p["mid"] <= 14 else "ok" if p["mid"] <= 22 else "pricey")
-        # "$20 to $30" is an ordinary bar night, and cutting those left one or two bars per area.
-        # Only clearly expensive spends are cut; cheaper places still rank first.
+        # Spend first: what people actually pay beats Google's $ to $$$$ label, which is the
+        # fallback below. "$20 to $30" is an ordinary bar night; only clearly expensive spends are
+        # cut, and cheaper places still rank first.
         if low >= 25 or high >= 60:
             tier = "pricey"
+        else:
+            tier = "cheap" if p["mid"] <= 16 else "ok"  # Google's "$10 to $20" bracket and below is cheap
     elif tier:
         scale = {"cheap": 0.85, "ok": 1.0, "pricey": 1.6}[tier]
         p.update(low=round(p["low"] * scale), high=round(p["high"] * scale), mid=round(p["mid"] * scale),
