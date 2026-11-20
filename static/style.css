@@ -249,3 +249,6 @@ h2 { font-weight: 800; font-size: 28px; letter-spacing: -.025em; line-height: 1.
 .where { min-height: 44px; margin-bottom: 10px; }
 .chips.scroll { margin: 0 0 4px; padding: 2px 0 8px; }
 .psearch .list b { display: block; font-weight: 700; }
+.btn.more { width: 100%; margin-top: 12px; min-height: 48px; }
+.btn.more .muted { color: var(--muted); font-weight: 600; }
+.count.end { text-align: center; margin-top: 14px; }

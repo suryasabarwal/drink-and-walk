@@ -238,3 +238,14 @@ def test_out_right_now_quips_rotate():
                 "no_cover": False, "hours_week": [[[0, 1680]]] * 7, "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
     lines = [r["line"] for r in planner.nearby([bar(i) for i in range(4)], 0.0, 0.0, 4, 21 * 60, "drink", {})]
     assert len(set(lines)) == 4
+
+
+def test_out_right_now_returns_everything_in_walking_distance_for_show_more():
+    from dw import planner
+    def bar(i, lon):
+        return {"id": f"n{i}", "name": f"Bar {i}", "lat": 0.0, "lon": lon, "amenity": "bar", "live_music": False, "ticketed": False,
+                "no_cover": False, "hours_week": [[[0, 1680]]] * 7, "price": {"tier": "cheap", "mid": 12, "low": 10, "high": 14}}
+    near = [bar(i, 0.0005 * i) for i in range(20)]      # all within about 1.1 km
+    far = [bar(100, 0.02)]                               # about 2.2 km: past a 15 minute walk
+    got = planner.nearby(near + far, 0.0, 0.0, 4, 21 * 60, "drink", {})
+    assert len(got) == 20 and all(r["walk"]["m"] <= 1200 for r in got)

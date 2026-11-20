@@ -359,7 +359,8 @@ def _late_confirmed(place, day: int, minute: int) -> bool:
     return open_state(place, day, max(minute, tonight_late), span=60) is True
 
 
-def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=14, radius=1200) -> list[dict[str, Any]]:
+def nearby(places, lat, lon, day: int, minute: int, mode: str, deals, limit=None, radius=1200) -> list[dict[str, Any]]:
+    """Everything cheap and open within about a 15 minute walk, best first. The page shows it in batches."""
     out = []
     for p in places:
         a = p["amenity"]

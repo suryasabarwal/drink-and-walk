@@ -65,7 +65,7 @@ const S = {
   step: 'home', flow: 'plan', city: null, start: '', end: '', people: 4, budget: 50,
   stay: null, vibe: 'dive', live: false, late: false, free: false, radius: 1500,
   plan: null, night: 0, anchors: null, anchorErr: '', locResults: null, picks: {},
-  near: { mode: 'drink', results: null, at: null, where: '', err: '', country: null, cityName: '', locFailed: false },
+  near: { shown: 0, mode: 'drink', results: null, at: null, where: '', err: '', country: null, cityName: '', locFailed: false },
 };
 
 /* ---------- navigation ---------- */
@@ -652,7 +652,7 @@ function useMyLocation() {
 async function loadNearby(at, where) {
   if (at) S.near.at = at;
   if (where) S.near.where = where;
-  S.step = 'nearby'; S.near.results = null; S.near.err = ''; render();
+  S.step = 'nearby'; S.near.results = null; S.near.err = ''; S.near.shown = NEAR_BATCH; render();
   const now = new Date();
   try {
     const q = new URLSearchParams({ lat: S.near.at.lat, lon: S.near.at.lon, day: (now.getDay() + 6) % 7, minute: now.getHours() * 60 + now.getMinutes(), mode: S.near.mode, ...(S.near.country ? { country: S.near.country } : {}) });
@@ -661,6 +661,7 @@ async function loadNearby(at, where) {
   } catch (e) { S.near.err = e.message; }
   if (S.step === 'nearby') render();
 }
+const NEAR_BATCH = 14;
 VIEWS.nearby = app => {
   const modes = [['drink', '🍺', 'Cheap drinks'], ['eat', '🌮', 'Cheap eats'], ['music', '🎸', 'Live music'], ['free', '🎟️', 'Free-ish'], ['late', '🌙', 'Late food']];
   const city = S.near.cityName; // never an older plan's city
@@ -680,8 +681,9 @@ VIEWS.nearby = app => {
     put(app, h('div', { class: 'notice' }, h('h5', {}, 'Nothing cheap and open within walking distance'),
       `The map knows ${S.near.known} places around here, and none of them fit. Try another mood, or walk toward the noise.`));
   } else {
-    put(app, h('p', { class: 'count' }, `${S.near.results.length} ${S.near.results.length === 1 ? 'place' : 'places'}, closest and best value first.`),
-      h('div', { class: 'list-cards' }, ...S.near.results.map(r => {
+    const all = S.near.results, shown = all.slice(0, S.near.shown || NEAR_BATCH), left = all.length - shown.length;
+    put(app, h('p', { class: 'count' }, `${all.length} ${all.length === 1 ? 'place' : 'places'} within a 15 minute walk, closest and best value first.`),
+      h('div', { class: 'list-cards' }, ...shown.map(r => {
       const p = r.place;
       return h('article', { class: 'card place' },
         h('div', { class: 'place-top' }, h('h4', {}, p.name), h('span', { class: 'walkpill' }, r.walk.min <= 1 ? 'Here' : r.walk.min + ' min')),
@@ -691,7 +693,12 @@ VIEWS.nearby = app => {
         p.address ? h('div', { class: 'addr' }, p.address) : null,
         dealRows(p, r.deals),
         linkRow(p, city, d => { r.deals = [...(r.deals || []), d]; render(); }));
-    })));
+    })),
+      left > 0
+        ? h('button', { class: 'btn ghost more', onclick: () => {
+            const y = scrollY; S.near.shown = shown.length + NEAR_BATCH; render(); scrollTo(0, y);
+          } }, left > NEAR_BATCH ? [`Show ${NEAR_BATCH} more`, h('span', { class: 'muted' }, ` of ${left} left`)] : (left === 1 ? 'Show the last one' : `Show the last ${left}`))
+        : all.length > NEAR_BATCH ? h('p', { class: 'count end' }, 'That is everything cheap and open within a 15 minute walk. The rest is closed, overpriced or badly reviewed.') : null);
   }
   put(app, credits(S.near.google));
 };
